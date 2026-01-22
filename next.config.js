@@ -1,11 +1,13 @@
 /** @type {import('next').NextConfig} */
 const baseApiUrl = process.env.BASE_API_URL;
+const useMock = process.env.NEXT_PUBLIC_USE_MOCK === "true";
 const nextConfig = {
   distDir: "build",
   reactStrictMode: true,
   productionBrowserSourceMaps: false,
   ...(baseApiUrl ? { env: { NEXT_PUBLIC_API_URL: baseApiUrl } } : {}),
   async rewrites() {
+    if (!useMock) return [];
     return [
       {
         source: "/osm/api/workflows",

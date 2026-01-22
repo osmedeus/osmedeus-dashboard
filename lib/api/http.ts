@@ -38,6 +38,7 @@ function resolveBaseURL(): string {
 export const http: AxiosInstance = axios.create({
   baseURL: resolveBaseURL(),
   headers: { "Content-Type": "application/json" },
+  withCredentials: true,
 });
 
 http.interceptors.request.use((config) => {
@@ -70,8 +71,18 @@ http.interceptors.response.use(
       error?.message ||
       "Request failed";
     if (status === 401 && typeof window !== "undefined") {
+      const msg = String(message).toLowerCase();
+      if (msg.includes("api key")) {
+        return Promise.reject(new Error(`${status || 0}:${message}`));
+      }
+      localStorage.setItem("osmedeus_force_logged_out", "true");
       localStorage.removeItem("osmedeus_token");
       localStorage.removeItem("osmedeus_session");
+      try {
+        document.cookie = "osmedeus_cookie=; Path=/; Max-Age=0; SameSite=Lax";
+        document.cookie = "osmedeus_token=; Path=/; Max-Age=0; SameSite=Lax";
+        document.cookie = "osmedeus_session=; Path=/; Max-Age=0; SameSite=Lax";
+      } catch {}
       if (window.location.pathname !== "/login") {
         window.location.href = "/login";
       }

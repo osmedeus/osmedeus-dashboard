@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import logo from "@/osmedeus-logo.png";
 import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
@@ -21,11 +22,18 @@ import { LoaderIcon, AlertCircleIcon, HeartIcon } from "lucide-react";
 import { toast } from "sonner";
 
 export default function LoginPage() {
-  const { login, isLoading: authLoading } = useAuth();
+  const router = useRouter();
+  const { login, isLoading: authLoading, isAuthenticated } = useAuth();
   const [username, setUsername] = React.useState("osmedeus");
   const [password, setPassword] = React.useState("");
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      router.replace("/");
+    }
+  }, [authLoading, isAuthenticated, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,6 +64,15 @@ export default function LoginPage() {
   };
 
   const isLoading = isSubmitting || authLoading;
+
+  if (authLoading || isAuthenticated) {
+    return (
+      <div className="flex items-center justify-center py-12 text-muted-foreground">
+        <LoaderIcon className="mr-2 size-4 animate-spin" />
+        <span>Redirecting...</span>
+      </div>
+    );
+  }
 
   return (
     <>
