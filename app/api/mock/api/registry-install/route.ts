@@ -34,11 +34,17 @@ export async function POST(request: Request) {
     : "direct-fetch") as RegistryMode;
 
   const installAll = body?.install_all === true;
+  const installOptional = body?.install_optional === true;
   const names = Array.isArray(body?.names)
     ? (body?.names as unknown[]).filter((n) => typeof n === "string")
     : [];
 
-  const targets = installAll ? Object.keys(mockDirectBinaries) : (names as string[]);
+  const targets = installAll
+    ? Object.keys(mockDirectBinaries).filter((name) => {
+        if (installOptional) return true;
+        return !Boolean(mockDirectBinaries[name]?.optional);
+      })
+    : (names as string[]);
   const installed: string[] = [];
   const failed: Array<{ name: string; error?: string }> = [];
 

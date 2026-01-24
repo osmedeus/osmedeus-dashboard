@@ -76,6 +76,7 @@ export async function getRegistryMetadata(params?: {
           },
           installed: true,
           path: "/usr/local/bin/nuclei",
+          optional: false,
         },
         amass: {
           desc: "In-depth attack surface mapping",
@@ -89,6 +90,7 @@ export async function getRegistryMetadata(params?: {
           },
           installed: false,
           path: "",
+          optional: false,
         },
       },
     };
@@ -103,6 +105,7 @@ export async function getRegistryMetadata(params?: {
 export async function installBinaries(params: {
   names?: string[];
   install_all?: boolean;
+  install_optional?: boolean;
   registry_url?: string;
   registry_mode?: RegistryMode;
 }): Promise<BinaryInstallResponse> {
@@ -126,6 +129,9 @@ export async function installBinaries(params: {
   }
   if (params.install_all) {
     body.install_all = true;
+  }
+  if (params.install_optional) {
+    body.install_optional = true;
   }
   if (params.registry_url) {
     body.registry_url = params.registry_url;

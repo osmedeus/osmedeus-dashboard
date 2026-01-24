@@ -15,6 +15,7 @@ type DirectBinaryMeta = {
   "command-darwin"?: Record<string, string>;
   installed?: boolean;
   path?: string;
+  optional?: boolean;
 };
 
 type NixTool = {
@@ -47,6 +48,7 @@ export let mockDirectBinaries: Record<string, DirectBinaryMeta> = {
     },
     installed: true,
     path: "/usr/local/bin/nuclei",
+    optional: false,
   },
   amass: {
     desc: "In-depth attack surface mapping",
@@ -60,6 +62,7 @@ export let mockDirectBinaries: Record<string, DirectBinaryMeta> = {
     },
     installed: false,
     path: "",
+    optional: false,
   },
   httpx: {
     desc: "Fast HTTP probing",
@@ -73,6 +76,7 @@ export let mockDirectBinaries: Record<string, DirectBinaryMeta> = {
     },
     installed: true,
     path: "/usr/local/bin/httpx",
+    optional: true,
   },
 };
 

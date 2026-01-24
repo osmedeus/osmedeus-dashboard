@@ -11,6 +11,7 @@ export interface DirectFetchBinaryMeta {
   ["command-darwin"]?: Record<string, string>;
   installed?: boolean;
   path?: string;
+  optional?: boolean;
 }
 
 export interface RegistryInfoDirectFetch {

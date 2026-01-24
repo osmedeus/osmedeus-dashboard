@@ -29,11 +29,11 @@ import {
   GitBranchIcon,
   FolderArchiveIcon,
   EyeIcon,
+  PlusCircleIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   FilterIcon,
   TagsIcon,
-  LayersIcon,
   ListIcon,
 } from "lucide-react";
 import { getRegistryMetadata, installBinaries, installWorkflow } from "@/lib/api/registry";
@@ -100,10 +100,11 @@ type RegistryRow = {
 export default function RegistryPage() {
   const [loading, setLoading] = React.useState(true);
   const [metadata, setMetadata] = React.useState<RegistryMetadata | null>(null);
-  const [registryMode, setRegistryMode] = React.useState<RegistryMode>("direct-fetch");
+  const [registryMode] = React.useState<RegistryMode>("direct-fetch");
   const [search, setSearch] = React.useState("");
   const [filterStatus, setFilterStatus] = React.useState<FilterOption>("all");
   const [tagFilter, setTagFilter] = React.useState<string>("all");
+  const [includeOptional, setIncludeOptional] = React.useState(false);
   const [selected, setSelected] = React.useState<Record<string, boolean>>({});
   const [perPage, setPerPage] = React.useState(15);
   const [page, setPage] = React.useState(1);
@@ -113,6 +114,7 @@ export default function RegistryPage() {
     | "version"
     | "tags"
     | "description"
+    | "optional"
     | "status"
     | "actions";
 
@@ -174,6 +176,8 @@ export default function RegistryPage() {
   const filtered = React.useMemo(() => {
     const q = search.trim().toLowerCase();
     return rows.filter((row) => {
+      const isOptional = Boolean((row.meta as any)?.optional);
+      if (!includeOptional && isOptional) return false;
       const rowTags = Array.isArray((row.meta as any)?.tags)
         ? ((row.meta as any).tags as string[])
         : [];
@@ -192,7 +196,7 @@ export default function RegistryPage() {
         tags.includes(q)
       );
     });
-  }, [rows, search, filterStatus, tagFilter]);
+  }, [rows, search, filterStatus, tagFilter, includeOptional]);
 
   const sorted = React.useMemo(() => {
     const getValue = (
@@ -215,6 +219,10 @@ export default function RegistryPage() {
         case "description": {
           const v = typeof meta.desc === "string" ? meta.desc : "";
           return { missing: !v, value: v };
+        }
+        case "optional": {
+          const isOptional = typeof meta.optional === "boolean" ? meta.optional : null;
+          return { missing: isOptional === null, value: Number(isOptional) };
         }
         case "status":
           return { missing: false, value: Number(Boolean(meta.installed)) };
@@ -262,7 +270,16 @@ export default function RegistryPage() {
 
   React.useEffect(() => {
     setPage(1);
-  }, [search, filterStatus, tagFilter, registryMode, perPage, sortState.direction, sortState.field]);
+  }, [
+    search,
+    filterStatus,
+    tagFilter,
+    includeOptional,
+    registryMode,
+    perPage,
+    sortState.direction,
+    sortState.field,
+  ]);
 
   const toggleSort = (field: RegistrySortField) => {
     setSortState((prev) => {
@@ -323,6 +340,7 @@ export default function RegistryPage() {
     try {
       const res = await installBinaries({
         install_all: true,
+        install_optional: includeOptional,
         registry_mode: registryMode,
       });
       toast.success(res.message || "Installation complete", {
@@ -381,10 +399,12 @@ export default function RegistryPage() {
 
   const stats = React.useMemo(() => {
     const installed = rows.filter((r) => Boolean((r.meta as any)?.installed)).length;
+    const optional = rows.filter((r) => Boolean((r.meta as any)?.optional)).length;
     return {
       total: rows.length,
       installed,
       notInstalled: rows.length - installed,
+      optional,
     };
   }, [rows]);
 
@@ -393,7 +413,7 @@ export default function RegistryPage() {
       <div className="space-y-6">
         <CardSkeleton />
         <div className="rounded-xl border bg-card p-6">
-          <TableSkeleton rows={8} columns={5} />
+          <TableSkeleton rows={8} columns={6} />
         </div>
       </div>
     );
@@ -410,19 +430,14 @@ export default function RegistryPage() {
                 <PackageIcon className="size-5" />
                 Binary Registry
               </CardTitle>
-              <CardDescription>Manage and install security tools</CardDescription>
+              <CardDescription>
+                Installing binaries is better handled through the CLI (
+                <span className="font-mono">osmedeus install binary -h</span>), as it provides a
+                more flexible way to manage binary installation. This page is mainly for
+                visualization purposes.
+              </CardDescription>
             </div>
             <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 text-sm">
-                <Badge variant="outline" className="gap-1">
-                  <CheckCircle2Icon className="size-3 text-green-500" />
-                  {stats.installed} installed
-                </Badge>
-                <Badge variant="outline" className="gap-1">
-                  <XCircleIcon className="size-3 text-muted-foreground" />
-                  {stats.notInstalled} missing
-                </Badge>
-              </div>
               <Button onClick={doInstallAll} disabled={installingBatch} size="sm" variant="secondary">
                 {installingBatch ? (
                   <LoaderIcon className="mr-2 size-4 animate-spin" />
@@ -434,6 +449,15 @@ export default function RegistryPage() {
               <Button variant="outline" size="sm" onClick={load} disabled={loading}>
                 <RefreshCwIcon className="mr-2 size-4" />
                 Refresh
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={includeOptional ? "secondary" : "outline"}
+                onClick={() => setIncludeOptional((prev) => !prev)}
+              >
+                <PlusCircleIcon className="mr-2 size-4" />
+                Include Optional
               </Button>
             </div>
           </div>
@@ -476,7 +500,7 @@ export default function RegistryPage() {
                 setSelected({});
               }}
             >
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-[160px]">
                 <span className="flex items-center gap-2">
                   <TagsIcon className="size-4 text-muted-foreground" />
                   <SelectValue placeholder="Tag" />
@@ -492,28 +516,8 @@ export default function RegistryPage() {
               </SelectContent>
             </Select>
 
-            <Select
-              value={registryMode}
-              onValueChange={(val) => {
-                setSelected({});
-                setTagFilter("all");
-                setRegistryMode(val as RegistryMode);
-              }}
-            >
-              <SelectTrigger className="w-[180px]">
-                <span className="flex items-center gap-2">
-                  <LayersIcon className="size-4 text-muted-foreground" />
-                  <SelectValue placeholder="Registry Mode" />
-                </span>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="direct-fetch">Direct Fetch</SelectItem>
-                <SelectItem value="nix-build">Nix Build</SelectItem>
-              </SelectContent>
-            </Select>
-
             <Select value={String(perPage)} onValueChange={(v) => setPerPage(Number(v))}>
-              <SelectTrigger className="w-[150px]">
+              <SelectTrigger className="w-[160px]">
                 <span className="flex items-center gap-2">
                   <ListIcon className="size-4 text-muted-foreground" />
                   <SelectValue placeholder="Per page" />
@@ -527,6 +531,21 @@ export default function RegistryPage() {
                 ))}
               </SelectContent>
             </Select>
+
+            <div className="flex items-center gap-2 text-sm">
+              <Badge variant="outline" className="h-9 gap-2 px-3 text-sm font-medium">
+                <CheckCircle2Icon className="size-4 text-green-500" />
+                {stats.installed} installed
+              </Badge>
+              <Badge variant="outline" className="h-9 gap-2 px-3 text-sm font-medium">
+                <XCircleIcon className="size-4 text-muted-foreground" />
+                {stats.notInstalled} missing
+              </Badge>
+              <Badge variant="outline" className="h-9 gap-2 px-3 text-sm font-medium">
+                <PlusCircleIcon className="size-4 text-muted-foreground" />
+                {stats.optional} optional
+              </Badge>
+            </div>
 
           </div>
 
@@ -600,6 +619,14 @@ export default function RegistryPage() {
                   Description
                 </SortableTableHead>
                 <SortableTableHead
+                  field="optional"
+                  currentSort={sortState}
+                  onSort={(f) => toggleSort(f as RegistrySortField)}
+                  className="hidden md:table-cell w-[110px]"
+                >
+                  Optional
+                </SortableTableHead>
+                <SortableTableHead
                   field="status"
                   currentSort={sortState}
                   onSort={(f) => toggleSort(f as RegistrySortField)}
@@ -620,7 +647,7 @@ export default function RegistryPage() {
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
                     No tools found
                   </TableCell>
                 </TableRow>
@@ -684,6 +711,15 @@ export default function RegistryPage() {
                       </TableCell>
                       <TableCell className="hidden lg:table-cell text-muted-foreground">
                         {meta.desc || "-"}
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        {typeof meta.optional === "boolean" ? (
+                          <Badge variant="outline" className="text-xs">
+                            {meta.optional ? "Yes" : "No"}
+                          </Badge>
+                        ) : (
+                          "-"
+                        )}
                       </TableCell>
                       <TableCell>
                         {isInstalled ? (
