@@ -38,7 +38,7 @@ function resolveBaseURL(): string {
 export const http: AxiosInstance = axios.create({
   baseURL: resolveBaseURL(),
   headers: { "Content-Type": "application/json" },
-  withCredentials: true,
+  withCredentials: false,
 });
 
 http.interceptors.request.use((config) => {

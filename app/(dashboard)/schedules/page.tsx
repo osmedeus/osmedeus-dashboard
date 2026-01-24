@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { fetchSchedules, createSchedule, enableSchedule, disableSchedule, triggerSchedule, deleteSchedule, updateSchedule } from "@/lib/api/schedules";
 import type { Schedule } from "@/lib/types/schedule";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -29,7 +30,7 @@ import {
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { LoaderIcon, PlayIcon, PauseIcon, Trash2Icon, PencilIcon, RefreshCcwIcon, ChevronLeftIcon, ChevronRightIcon, Columns3Icon, XIcon } from "lucide-react";
+import { LoaderIcon, PlayIcon, PauseIcon, Trash2Icon, PencilIcon, RefreshCcwIcon, ChevronLeftIcon, ChevronRightIcon, Columns3Icon, XIcon, PlusIcon } from "lucide-react";
 import type { SortDirection } from "@/lib/types/asset";
 
 export default function SchedulesPage() {
@@ -426,6 +427,13 @@ export default function SchedulesPage() {
               <Button className="shrink-0" variant="outline" onClick={load}>
                 <RefreshCcwIcon className="mr-2 size-4" />
                 Refresh
+              </Button>
+
+              <Button asChild className="shrink-0">
+                <Link href="/scans/new?schedule=1">
+                  <PlusIcon className="mr-2 size-4" />
+                  New Scan
+                </Link>
               </Button>
             </div>
           </div>

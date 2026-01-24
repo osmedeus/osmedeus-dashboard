@@ -11,17 +11,35 @@ export interface ScanFilters {
   status?: string;
   workflowName?: string;
   target?: string;
+  workspace?: string;
 }
 
 function mapScanFromApi(r: any): Scan {
+  const workflowName =
+    r.workflow_name ??
+    r.workflow ??
+    r.flow ??
+    r.module ??
+    "";
+  const workflowKind = r.workflow_kind ?? r.kind ?? (r.module ? "module" : "flow");
+  const target =
+    r.target ??
+    (Array.isArray(r.targets) && r.targets.length > 0 ? r.targets[0] : "") ??
+    r.target_file ??
+    "";
+  const runUuid = r.run_uuid ?? r.runUuid ?? "";
+  const id = String(r.id ?? r.run_id ?? r.runId ?? runUuid ?? "");
+  const runId = r.run_id ?? r.runId ?? r.id ?? "";
   return {
-    id: String(r.id ?? r.run_id ?? ""),
-    runId: r.run_id ?? "",
-    workflowName: r.workflow_name ?? "",
-    workflowKind: r.workflow_kind === "module" ? "module" : "flow",
-    target: r.target ?? "",
+    id,
+    runId,
+    runUuid: String(runUuid || ""),
+    workflowName,
+    workflowKind: workflowKind === "module" ? "module" : "flow",
+    target,
     params: r.params,
     status: r.status ?? "pending",
+    workspace: r.workspace,
     workspacePath: r.workspace_path,
     startedAt: r.started_at ? new Date(r.started_at) : undefined,
     completedAt: r.completed_at ? new Date(r.completed_at) : undefined,
@@ -29,6 +47,7 @@ function mapScanFromApi(r: any): Scan {
     completedSteps: r.completed_steps ?? 0,
     triggerType: r.trigger_type ?? "manual",
     triggerName: r.trigger_name,
+    runGroupId: r.run_group_id,
     errorMessage: r.error_message,
     createdAt: r.created_at ? new Date(r.created_at) : new Date(),
     updatedAt: r.updated_at ? new Date(r.updated_at) : new Date(),
@@ -52,6 +71,7 @@ export async function fetchScans(params: {
     const normalizedStatus = (filters.status ?? "").trim().toLowerCase();
     const workflowQuery = (filters.workflowName ?? "").trim().toLowerCase();
     const targetQuery = (filters.target ?? "").trim().toLowerCase();
+    const workspaceQuery = (filters.workspace ?? "").trim().toLowerCase();
 
     const filtered = demoScans.filter((s) => {
       if (normalizedStatus && normalizedStatus !== "all") {
@@ -59,6 +79,7 @@ export async function fetchScans(params: {
       }
       if (workflowQuery && !s.workflowName.toLowerCase().includes(workflowQuery)) return false;
       if (targetQuery && !s.target.toLowerCase().includes(targetQuery)) return false;
+      if (workspaceQuery && String(s.workspace ?? "").toLowerCase() !== workspaceQuery) return false;
       return true;
     });
 
@@ -85,6 +106,7 @@ export async function fetchScans(params: {
   if (filters.status && filters.status !== "all") query.status = filters.status;
   if (filters.workflowName) query.workflow_name = filters.workflowName;
   if (filters.target) query.target = filters.target;
+  if (filters.workspace) query.workspace = filters.workspace;
 
   const res = await http.get(`${API_PREFIX}/runs`, { params: query });
   const list = (res.data?.data || []) as Array<any>;
@@ -152,6 +174,7 @@ export async function createScan(input: NewScanInput): Promise<Scan> {
     const scan: Scan = {
       id,
       runId: `run-demo-${Date.now()}`,
+      runUuid: `run-demo-uuid-${Date.now()}`,
       workflowName: input.workflowId,
       workflowKind: input.workflowKind || "flow",
       target:
@@ -182,6 +205,7 @@ export async function createScan(input: NewScanInput): Promise<Scan> {
     return {
       id: `scan-${Date.now()}`,
       runId: "",
+      runUuid: "",
       workflowName: input.workflowId,
       workflowKind: input.workflowKind || "flow",
       target: input.target || "",
@@ -237,32 +261,37 @@ export async function createScan(input: NewScanInput): Promise<Scan> {
     }
   }
 
-  await http.post(`${API_PREFIX}/runs`, body);
+  const res = await http.post(`${API_PREFIX}/runs`, body);
+  const data = res.data?.data ?? res.data ?? {};
+  const fallbackTarget =
+    input.target ||
+    (Array.isArray(input.targets) && input.targets.length > 0 ? input.targets[0] : "") ||
+    (input.target_file ?? "");
+  const mapped = mapScanFromApi({
+    ...data,
+    id: data.id ?? data.run_id ?? data.runId ?? `scan-${Date.now()}`,
+    run_id: data.run_id ?? data.runId ?? "",
+    run_uuid: data.run_uuid ?? data.runUuid ?? "",
+    workflow_name: data.workflow_name ?? data.workflow ?? input.workflowId,
+    workflow_kind: data.workflow_kind ?? data.kind ?? input.workflowKind ?? "flow",
+    target: data.target ?? fallbackTarget,
+    status: data.status ?? "running",
+    trigger_type: data.trigger_type ?? "manual",
+    created_at: data.created_at ?? new Date().toISOString(),
+    updated_at: data.updated_at ?? new Date().toISOString(),
+  });
 
-  return {
-    id: `scan-${Date.now()}`,
-    runId: "",
-    workflowName: input.workflowId,
-    workflowKind: input.workflowKind || "flow",
-    target:
-      input.target ||
-      (Array.isArray(input.targets) && input.targets.length > 0 ? input.targets[0] : "") ||
-      (input.target_file ?? ""),
-    status: "running",
-    totalSteps: 0,
-    completedSteps: 0,
-    triggerType: "manual",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
+  return mapped;
 }
 
 /**
  * Cancel a running scan
  */
-export async function cancelScan(id: string): Promise<boolean> {
+export async function cancelScan(runUuid: string): Promise<boolean> {
   if (isDemoMode()) {
-    const idx = demoScans.findIndex((s) => s.id === id || s.runId === id);
+    const idx = demoScans.findIndex(
+      (s) => s.runUuid === runUuid || s.id === runUuid || s.runId === runUuid
+    );
     if (idx === -1) return false;
     const now = new Date();
     const next = [...demoScans];
@@ -276,7 +305,7 @@ export async function cancelScan(id: string): Promise<boolean> {
     return true;
   }
   try {
-    await http.delete(`${API_PREFIX}/runs/${encodeURIComponent(id)}`);
+    await http.delete(`${API_PREFIX}/runs/${encodeURIComponent(runUuid)}`);
     return true;
   } catch {
     return false;
@@ -286,6 +315,70 @@ export async function cancelScan(id: string): Promise<boolean> {
 /**
  * Delete a scan (same as cancel for now)
  */
-export async function deleteScan(id: string): Promise<boolean> {
-  return cancelScan(id);
+export async function deleteScan(runUuid: string): Promise<boolean> {
+  return cancelScan(runUuid);
+}
+
+/**
+ * Duplicate a scan run
+ */
+export async function duplicateScanRun(runUuid: string): Promise<Scan> {
+  if (isDemoMode()) {
+    const original = demoScans.find(
+      (s) => s.runUuid === runUuid || s.id === runUuid || s.runId === runUuid
+    );
+    const now = new Date();
+    const id = `scan-${Math.random().toString(16).slice(2, 10)}`;
+    const scan: Scan = {
+      id,
+      runId: `run-demo-${Date.now()}`,
+      runUuid: `run-demo-uuid-${Date.now()}`,
+      workflowName: original?.workflowName ?? "duplicate",
+      workflowKind: original?.workflowKind ?? "flow",
+      target: original?.target ?? "",
+      params: original?.params,
+      status: "pending",
+      workspace: original?.workspace,
+      workspacePath: original?.workspacePath,
+      totalSteps: original?.totalSteps ?? 0,
+      completedSteps: 0,
+      triggerType: "manual",
+      createdAt: now,
+      updatedAt: now,
+    };
+    demoScans = [scan, ...demoScans];
+    return scan;
+  }
+  const res = await http.post(`${API_PREFIX}/runs/${encodeURIComponent(runUuid)}/duplicate`);
+  const data = res.data?.data ?? res.data ?? {};
+  return mapScanFromApi(data);
+}
+
+/**
+ * Start a pending scan run
+ */
+export async function startScanRun(runUuid: string): Promise<Scan | null> {
+  if (isDemoMode()) {
+    const idx = demoScans.findIndex(
+      (s) => s.runUuid === runUuid || s.id === runUuid || s.runId === runUuid
+    );
+    if (idx === -1) return null;
+    const now = new Date();
+    const next = [...demoScans];
+    next[idx] = {
+      ...next[idx],
+      status: "running",
+      startedAt: next[idx].startedAt ?? now,
+      updatedAt: now,
+    };
+    demoScans = next;
+    return next[idx];
+  }
+  try {
+    const res = await http.post(`${API_PREFIX}/runs/${encodeURIComponent(runUuid)}/start`);
+    const data = res.data?.data ?? res.data;
+    return data ? mapScanFromApi(data) : null;
+  } catch {
+    return null;
+  }
 }

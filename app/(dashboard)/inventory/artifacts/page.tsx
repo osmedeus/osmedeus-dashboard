@@ -34,6 +34,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SortableTableHead } from "@/components/ui/sortable-table-head";
+import { AnimatePresence, motion } from "motion/react";
 import ReactMarkdown from "react-markdown";
 import {
   Table,
@@ -958,12 +959,19 @@ export default function InventoryArtifactsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {sortedArtifacts.map((a) => (
-                        <TableRow
-                          key={a.id}
-                          className="hover:bg-muted/30 cursor-pointer"
-                          onClick={() => openDetails(a)}
-                        >
+                      <AnimatePresence initial={false} mode="popLayout">
+                        {sortedArtifacts.map((a) => (
+                          <motion.tr
+                            key={a.id}
+                            data-slot="table-row"
+                            layout="position"
+                            initial={{ opacity: 0, y: 4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -4 }}
+                            transition={{ duration: 0.18, ease: "easeOut" }}
+                            className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted cursor-pointer"
+                            onClick={() => openDetails(a)}
+                          >
                           <TableCell className="font-medium">{a.name}</TableCell>
                           <TableCell>
                             <span className="font-mono text-sm">{a.workspace}</span>
@@ -1003,8 +1011,9 @@ export default function InventoryArtifactsPage() {
                               </Button>
                             </div>
                           </TableCell>
-                        </TableRow>
-                      ))}
+                          </motion.tr>
+                        ))}
+                      </AnimatePresence>
                     </TableBody>
                   </Table>
                 </div>

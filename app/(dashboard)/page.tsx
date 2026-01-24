@@ -39,7 +39,7 @@ export default function DashboardPage() {
     <div className="space-y-6">
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-4 grid-cols-[repeat(auto-fit,minmax(220px,1fr))]">
         {isLoading ? (
           Array.from({ length: 5 }).map((_, i) => (
             <StatCardSkeleton key={i} />

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,6 +58,10 @@ import {
 
 export default function NewScanPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const scheduleParam = (searchParams.get("schedule") ?? "").toLowerCase();
+  const scheduleFromUrl =
+    scheduleParam === "1" || scheduleParam === "true" || scheduleParam === "yes";
   const [workflows, setWorkflows] = React.useState<Workflow[]>([]);
   const [workspaces, setWorkspaces] = React.useState<Workspace[]>([]);
   const [isLoadingData, setIsLoadingData] = React.useState(true);
@@ -84,7 +88,7 @@ export default function NewScanPage() {
   const [runnerType, setRunnerType] = React.useState<"local" | "docker" | "ssh">("local");
   const [dockerImage, setDockerImage] = React.useState("");
   const [sshHost, setSshHost] = React.useState("");
-  const [enableSchedule, setEnableSchedule] = React.useState(false);
+  const [enableSchedule, setEnableSchedule] = React.useState(scheduleFromUrl);
   const [cronExpression, setCronExpression] = React.useState("");
   const [cronError, setCronError] = React.useState<string | null>(null);
 

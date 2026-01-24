@@ -137,7 +137,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser({
             id: "user",
             username: "osmedeus",
-            email: "osmedeus@osmedeus.io",
+            email: "osmedeus@osmedeus.org",
             name: "Osmedeus",
           });
           return;

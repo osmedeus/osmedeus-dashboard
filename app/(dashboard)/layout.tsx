@@ -1,11 +1,13 @@
 "use client";
 
 import * as React from "react";
+import { usePathname } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
+import { AnimatePresence, motion } from "motion/react";
 
 export default function DashboardLayout({
   children,
@@ -14,6 +16,7 @@ export default function DashboardLayout({
 }) {
   const { isLoading, isAuthenticated } = useAuth();
   const [sidebarOpen, setSidebarOpen] = React.useState(true);
+  const pathname = usePathname();
   const DISABLE_AUTH =
     typeof process !== "undefined" &&
     process.env.NEXT_PUBLIC_DISABLE_LOGIN === "true";
@@ -60,7 +63,18 @@ export default function DashboardLayout({
       <SidebarInset>
         <Topbar />
         <main className="flex-1 overflow-y-auto">
-          <div className="w-full max-w-none p-4 lg:p-6">{children}</div>
+          <AnimatePresence initial={false} mode="wait">
+            <motion.div
+              key={pathname}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="w-full max-w-none p-4 lg:p-6"
+            >
+              {children}
+            </motion.div>
+          </AnimatePresence>
         </main>
       </SidebarInset>
     </SidebarProvider>

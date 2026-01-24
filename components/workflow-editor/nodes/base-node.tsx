@@ -193,6 +193,9 @@ function buildModuleSummary(module: WorkflowNodeData["module"]): string[] {
   if (!module) return [];
   const lines: string[] = [];
 
+  const extendsValue = typeof module.extends === "string" ? module.extends.trim() : "";
+  if (extendsValue) lines.push(truncateText(`extends: ${normalizeInlineText(extendsValue)}`, 140));
+
   const path = typeof module.path === "string" ? module.path.trim() : "";
   if (path) lines.push(truncateText(`path: ${normalizeInlineText(path)}`, 140));
 

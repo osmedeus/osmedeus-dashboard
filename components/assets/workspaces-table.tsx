@@ -23,6 +23,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { SortableTableHead } from "@/components/ui/sortable-table-head";
 import { formatNumber } from "@/lib/utils";
 import type { Workspace, WorkspaceSortState, WorkspaceSortField } from "@/lib/types/asset";
+import { AnimatePresence, motion } from "motion/react";
 import {
   ArchiveIcon,
   FolderOpenIcon,
@@ -299,18 +300,25 @@ export function WorkspacesTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {workspaces.map((ws) => {
-                const hasVulns =
-                  ws.vuln_critical > 0 ||
-                  ws.vuln_high > 0 ||
-                  ws.vuln_medium > 0 ||
-                  ws.vuln_low > 0;
+              <AnimatePresence initial={false} mode="popLayout">
+                {workspaces.map((ws) => {
+                  const hasVulns =
+                    ws.vuln_critical > 0 ||
+                    ws.vuln_high > 0 ||
+                    ws.vuln_medium > 0 ||
+                    ws.vuln_low > 0;
 
-                return (
-                  <TableRow
-                    key={`${ws.id || ws.name}`}
-                    className="cursor-pointer hover:bg-muted/50"
-                  >
+                  return (
+                    <motion.tr
+                      key={`${ws.id || ws.name}`}
+                      data-slot="table-row"
+                      layout="position"
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      transition={{ duration: 0.18, ease: "easeOut" }}
+                      className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted cursor-pointer"
+                    >
                     <TableCell>
                       <Link
                         href={`/inventory/workspaces/${ws.name}`}
@@ -399,9 +407,10 @@ export function WorkspacesTable({
                         </Tooltip>
                       </div>
                     </TableCell>
-                  </TableRow>
-                );
-              })}
+                    </motion.tr>
+                  );
+                })}
+              </AnimatePresence>
             </TableBody>
           </Table>
         </div>

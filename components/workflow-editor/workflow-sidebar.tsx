@@ -19,6 +19,8 @@ import {
   GlobeIcon,
   BrainIcon,
   BoxIcon,
+  ZapIcon,
+  SlidersHorizontalIcon,
 } from "lucide-react";
 import { Light as SyntaxHighlighter } from "react-syntax-highlighter";
 import yamlLang from "react-syntax-highlighter/dist/esm/languages/hljs/yaml";
@@ -33,6 +35,8 @@ import jsyaml from "js-yaml";
 interface WorkflowSidebarProps {
   selectedStep: WorkflowStep | null;
   selectedModule?: WorkflowFlowModule | null;
+  selectedTrigger?: Record<string, unknown>[] | null;
+  selectedOverride?: { name?: string; params?: Record<string, unknown> } | null;
   yamlPreview: string;
   wrapLongText?: boolean;
   onStepUpdate?: (stepName: string, updates: Partial<WorkflowStep>) => void;
@@ -45,6 +49,8 @@ interface WorkflowSidebarProps {
 export function WorkflowSidebar({
   selectedStep,
   selectedModule = null,
+  selectedTrigger = null,
+  selectedOverride = null,
   yamlPreview,
   wrapLongText = false,
   onStepUpdate,
@@ -68,11 +74,49 @@ export function WorkflowSidebar({
     container: <BoxIcon className="size-4" />,
     "remote-bash": <BoxIcon className="size-4" />,
     module: <BoxIcon className="size-4" />,
+    trigger: <ZapIcon className="size-4" />,
+    override: <SlidersHorizontalIcon className="size-4" />,
   };
   const CodeHighlighter = SyntaxHighlighter as unknown as React.ComponentType<any>;
-  const selectionType = selectedStep?.type ?? (selectedModule ? "module" : "");
-  const selectionName = selectedStep?.name ?? (selectedModule?.name ?? "");
+  const selectionType =
+    selectedStep?.type ?? (selectedOverride ? "override" : selectedModule ? "module" : selectedTrigger ? "trigger" : "");
+  const selectionName =
+    selectedStep?.name ??
+    (selectedOverride
+      ? selectedOverride.name === "override"
+        ? "Override"
+        : selectedOverride.name || "Override"
+      : selectedModule?.name ?? (selectedTrigger ? "Triggers" : ""));
   const [activeTab, setActiveTab] = React.useState("properties");
+
+  const normalizedTriggerEntries = React.useMemo(() => {
+    if (!selectedTrigger) return [];
+    return selectedTrigger.map((entry) => {
+      const anyEntry = entry as Record<string, unknown>;
+      const event = anyEntry.event && typeof anyEntry.event === "object" ? (anyEntry.event as Record<string, unknown>) : null;
+      const rawFilters = event?.filters;
+      const rawFilterFunctions = (event as any)?.filter_functions ?? (event as any)?.filterFunctions;
+      const filters = Array.isArray(rawFilters) ? rawFilters.filter((f) => typeof f === "string") as string[] : [];
+      const filterFunctions = Array.isArray(rawFilterFunctions)
+        ? rawFilterFunctions.filter((f) => typeof f === "string") as string[]
+        : [];
+
+      return {
+        name: typeof anyEntry.name === "string" ? anyEntry.name : "",
+        on: typeof anyEntry.on === "string" ? anyEntry.on : "",
+        enabled: typeof anyEntry.enabled === "boolean" ? anyEntry.enabled : undefined,
+        schedule: typeof anyEntry.schedule === "string" ? anyEntry.schedule : "",
+        path: typeof anyEntry.path === "string" ? anyEntry.path : "",
+        event: event
+          ? {
+              topic: typeof event.topic === "string" ? event.topic : "",
+              filters,
+              filterFunctions,
+            }
+          : null,
+      };
+    });
+  }, [selectedTrigger]);
 
   const badgeVariantForStepType = React.useCallback(
     (
@@ -304,7 +348,7 @@ export function WorkflowSidebar({
 
         <TabsContent value="properties" className="flex-1 m-0 min-h-0">
           <ScrollArea className="h-full">
-            {selectedStep || selectedModule ? (
+            {selectedStep || selectedModule || selectedTrigger || selectedOverride ? (
               <div className="p-4 space-y-6">
                 {/* Step Header */}
                 <div className="space-y-2">
@@ -333,8 +377,110 @@ export function WorkflowSidebar({
                     />
                   </div>
 
+                  {selectedTrigger && normalizedTriggerEntries.length > 0 && (
+                    <div className="space-y-4">
+                      <Label>Triggers</Label>
+                      <div className="space-y-3">
+                        {normalizedTriggerEntries.map((trigger, idx) => (
+                          <div key={`${trigger.name || "trigger"}-${idx}`} className="rounded-md border p-3 space-y-3">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant="secondary" className="uppercase">
+                                {trigger.on || "trigger"}
+                              </Badge>
+                              <span className="text-sm font-medium">
+                                {trigger.name || `Trigger ${idx + 1}`}
+                              </span>
+                              {typeof trigger.enabled === "boolean" && (
+                                <Badge variant={trigger.enabled ? "success" : "outline"}>
+                                  {trigger.enabled ? "enabled" : "disabled"}
+                                </Badge>
+                              )}
+                            </div>
+
+                            {trigger.schedule && (
+                              <div className="space-y-2">
+                                <Label>Schedule</Label>
+                                <div className="rounded-md border bg-muted/30 p-2 font-mono text-xs whitespace-pre-wrap break-words">
+                                  {trigger.schedule}
+                                </div>
+                              </div>
+                            )}
+
+                            {trigger.path && (
+                              <div className="space-y-2">
+                                <Label>Path</Label>
+                                <div className="rounded-md border bg-muted/30 p-2 font-mono text-xs whitespace-pre-wrap break-words">
+                                  {trigger.path}
+                                </div>
+                              </div>
+                            )}
+
+                            {trigger.event?.topic && (
+                              <div className="space-y-2">
+                                <Label>Topic</Label>
+                                <div className="rounded-md border bg-muted/30 p-2 font-mono text-xs whitespace-pre-wrap break-words">
+                                  {trigger.event.topic}
+                                </div>
+                              </div>
+                            )}
+
+                            {trigger.event?.filters && trigger.event.filters.length > 0 &&
+                              renderStringList("Filters", trigger.event.filters, {
+                                language: "javascript",
+                                copyAllText: trigger.event.filters.join("\n"),
+                              })}
+
+                            {trigger.event?.filterFunctions && trigger.event.filterFunctions.length > 0 &&
+                              renderStringList("Filter Functions", trigger.event.filterFunctions, {
+                                language: "javascript",
+                                copyAllText: trigger.event.filterFunctions.join("\n"),
+                              })}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedOverride && selectedOverride.params && Object.keys(selectedOverride.params).length > 0 && (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <Label>Override Params</Label>
+                        <div className="rounded-md border bg-muted/30 p-2">
+                          <CodeHighlighter
+                            language="json"
+                            style={theme === "dark" ? atomOneDark : github}
+                            customStyle={{
+                              margin: 0,
+                              background: "transparent",
+                              fontSize: "0.75rem",
+                              whiteSpace: "pre-wrap",
+                              wordBreak: "break-word",
+                            }}
+                            codeTagProps={{
+                              style: {
+                                whiteSpace: "pre-wrap",
+                                wordBreak: "break-word",
+                              },
+                            }}
+                          >
+                            {JSON.stringify(selectedOverride.params, null, 2)}
+                          </CodeHighlighter>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {selectedModule && (
                     <div className="space-y-4">
+                      {selectedModule.extends && (
+                        <div className="space-y-2">
+                          <Label>Extends</Label>
+                          <div className="rounded-md border bg-muted/30 p-2 font-mono text-xs whitespace-pre-wrap break-words">
+                            {selectedModule.extends}
+                          </div>
+                        </div>
+                      )}
+
                       {selectedModule.path && (
                         <div className="space-y-2">
                           <Label>Path</Label>

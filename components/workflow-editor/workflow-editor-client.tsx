@@ -11,6 +11,7 @@ import {
   parseWorkflowYaml,
   serializeWorkflowToYaml,
   updateStepInWorkflow,
+  getFlowModules,
   type ParsedWorkflow,
 } from "@/components/workflow-editor/utils/yaml-parser";
 import { ErrorState } from "@/components/shared/error-state";
@@ -135,7 +136,7 @@ export default function WorkflowEditorClient({ workflowId }: WorkflowEditorClien
     } finally {
       setIsLoading(false);
     }
-  }, [effectiveId]);
+  }, [effectiveId, baseURL]);
 
   React.useEffect(() => {
     loadWorkflow();
@@ -144,16 +145,33 @@ export default function WorkflowEditorClient({ workflowId }: WorkflowEditorClien
   const selectedStep = React.useMemo(() => {
     if (!selectedStepName || !workflowData) return null;
     if (workflowData.kind !== "module") return null;
-    return (workflowData as ModuleWorkflowYaml).steps.find((s) => s.name === selectedStepName) ?? null;
+    const steps = (workflowData as ModuleWorkflowYaml).steps ?? [];
+    return steps.find((s) => s.name === selectedStepName) ?? null;
   }, [selectedStepName, workflowData]);
 
   const selectedModule = React.useMemo(() => {
     if (!selectedStepName || !workflowData) return null;
     if (workflowData.kind !== "flow") return null;
-    const modules = (workflowData as FlowWorkflowYaml).modules;
-    if (!Array.isArray(modules)) return null;
-    return (modules as WorkflowFlowModule[]).find((m) => m.name === selectedStepName) ?? null;
+    const wf = workflowData as FlowWorkflowYaml;
+    const name = typeof wf.name === "string" ? wf.name : "";
+    const modules = getFlowModules(wf, name);
+    return modules.find((m) => m.name === selectedStepName) ?? null;
   }, [selectedStepName, workflowData]);
+
+  const selectedTrigger = React.useMemo(() => {
+    if (selectedStepName !== "_trigger") return null;
+    const node = parsedWorkflow?.nodes.find((n) => n.id === "_trigger");
+    const triggers = (node?.data as any)?.triggers;
+    return Array.isArray(triggers) ? triggers : null;
+  }, [parsedWorkflow, selectedStepName]);
+
+  const selectedOverride = React.useMemo(() => {
+    if (selectedStepName !== "_override") return null;
+    const node = parsedWorkflow?.nodes.find((n) => n.id === "_override");
+    const overrideModule = (node?.data as any)?.module;
+    if (!overrideModule || typeof overrideModule !== "object") return null;
+    return overrideModule as { name?: string; params?: Record<string, unknown> };
+  }, [parsedWorkflow, selectedStepName]);
 
   const allSteps = React.useMemo(() => {
     if (!workflowData || workflowData.kind !== "module") return [] as WorkflowStep[];
@@ -162,7 +180,9 @@ export default function WorkflowEditorClient({ workflowId }: WorkflowEditorClien
 
   const allModules = React.useMemo(() => {
     if (!workflowData || workflowData.kind !== "flow") return [] as WorkflowFlowModule[];
-    return ((workflowData as FlowWorkflowYaml).modules ?? []) as WorkflowFlowModule[];
+    const wf = workflowData as FlowWorkflowYaml;
+    const name = typeof wf.name === "string" ? wf.name : "";
+    return getFlowModules(wf, name);
   }, [workflowData]);
 
   const handleNavigateToNode = React.useCallback((nodeId: string) => {
@@ -411,6 +431,8 @@ export default function WorkflowEditorClient({ workflowId }: WorkflowEditorClien
           <WorkflowSidebar
             selectedStep={selectedStep}
             selectedModule={selectedModule}
+              selectedTrigger={selectedTrigger}
+              selectedOverride={selectedOverride}
             yamlPreview={yamlPreview}
             wrapLongText={wrapCanvasText}
             onStepUpdate={handleStepUpdate}

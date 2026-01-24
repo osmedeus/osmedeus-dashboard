@@ -4,6 +4,7 @@ export const mockScans: Scan[] = [
   {
     id: "scan-001",
     runId: "run-2025-01-15-subdomain-enum-example.com",
+    runUuid: "run-2025-01-15-subdomain-enum-example.com",
     workflowName: "subdomain-enum",
     workflowKind: "flow",
     target: "example.com",
@@ -19,6 +20,7 @@ export const mockScans: Scan[] = [
   {
     id: "scan-002",
     runId: "run-2025-01-15-vulnerability-scan-api.example.com",
+    runUuid: "run-2025-01-15-vulnerability-scan-api.example.com",
     workflowName: "vulnerability-scan",
     workflowKind: "flow",
     target: "api.example.com",
@@ -33,6 +35,7 @@ export const mockScans: Scan[] = [
   {
     id: "scan-003",
     runId: "run-2025-01-15-full-recon-testsite.org",
+    runUuid: "run-2025-01-15-full-recon-testsite.org",
     workflowName: "full-recon",
     workflowKind: "flow",
     target: "testsite.org",
@@ -46,6 +49,7 @@ export const mockScans: Scan[] = [
   {
     id: "scan-004",
     runId: "run-2025-01-15-subdomain-enum-acme.io",
+    runUuid: "run-2025-01-15-subdomain-enum-acme.io",
     workflowName: "subdomain-enum",
     workflowKind: "flow",
     target: "acme.io",
@@ -62,6 +66,7 @@ export const mockScans: Scan[] = [
   {
     id: "scan-005",
     runId: "run-2025-01-14-http-probe-secure.bank.com",
+    runUuid: "run-2025-01-14-http-probe-secure.bank.com",
     workflowName: "http-probe",
     workflowKind: "module",
     target: "secure.bank.com",
@@ -77,6 +82,7 @@ export const mockScans: Scan[] = [
   {
     id: "scan-006",
     runId: "run-2025-01-13-subdomain-enum-startup.dev",
+    runUuid: "run-2025-01-13-subdomain-enum-startup.dev",
     workflowName: "subdomain-enum",
     workflowKind: "flow",
     target: "startup.dev",
@@ -92,6 +98,7 @@ export const mockScans: Scan[] = [
   {
     id: "scan-007",
     runId: "run-2025-01-12-full-recon-megacorp.com",
+    runUuid: "run-2025-01-12-full-recon-megacorp.com",
     workflowName: "full-recon",
     workflowKind: "flow",
     target: "megacorp.com",
@@ -107,6 +114,7 @@ export const mockScans: Scan[] = [
   {
     id: "scan-008",
     runId: "run-2025-01-15-vulnerability-scan-shop.retail.com",
+    runUuid: "run-2025-01-15-vulnerability-scan-shop.retail.com",
     workflowName: "vulnerability-scan",
     workflowKind: "flow",
     target: "shop.retail.com",

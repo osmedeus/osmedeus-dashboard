@@ -74,9 +74,10 @@ export function timeAgo(date: Date | string): string {
   return formatDate(d);
 }
 
-export function truncate(str: string, length: number): string {
-  if (str.length <= length) return str;
-  return str.slice(0, length) + "...";
+export function truncate(value: unknown, length: number): string {
+  const text = typeof value === "string" ? value : value == null ? "" : String(value);
+  if (text.length <= length) return text;
+  return text.slice(0, length) + "...";
 }
 
 export function delay(ms: number): Promise<void> {

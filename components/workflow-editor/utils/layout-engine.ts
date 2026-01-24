@@ -47,6 +47,10 @@ export function layoutWorkflow(
 
   // Add edges to dagre
   edges.forEach((edge) => {
+    if (edge.source === "_trigger" && edge.target === "_start") {
+      g.setEdge(edge.source, edge.target, { minlen: 2 });
+      return;
+    }
     g.setEdge(edge.source, edge.target);
   });
 

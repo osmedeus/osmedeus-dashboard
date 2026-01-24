@@ -22,6 +22,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { SortableTableHead } from "@/components/ui/sortable-table-head";
 import { truncate, getTechBadgeVariant } from "@/lib/utils";
 import type { HttpAsset, AssetSortState, AssetSortField } from "@/lib/types/asset";
+import { AnimatePresence, motion } from "motion/react";
 import { toast } from "sonner";
 import {
   LinkIcon,
@@ -158,7 +159,7 @@ export function HttpAssetsTable({
                   onSort={(f) => onSort(f as AssetSortField)}
                   className="w-[280px]"
                 >
-                  URL
+                  Asset Value
                 </SortableTableHead>
                 <SortableTableHead
                   field="statusCode"
@@ -211,65 +212,139 @@ export function HttpAssetsTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {assets.map((asset) => (
-                <TableRow
-                  key={asset.id}
-                  className="cursor-pointer hover:bg-muted/50"
-                  onClick={() => onSelect?.(asset)}
-                >
+              <AnimatePresence initial={false} mode="popLayout">
+                {assets.map((asset) => (
+                  <motion.tr
+                    key={asset.id}
+                    data-slot="table-row"
+                    layout="position"
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -4 }}
+                    transition={{ duration: 0.18, ease: "easeOut" }}
+                    className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted cursor-pointer"
+                    onClick={() => onSelect?.(asset)}
+                  >
                   <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-7"
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              try {
-                                await navigator.clipboard.writeText(asset.url);
-                                toast.success("Copied URL");
-                              } catch {
-                                toast.error("Failed to copy URL");
-                              }
-                            }}
+                    {(() => {
+                      const assetValue = asset.assetValue || asset.url;
+                      const isUrlValue = /^https?:\/\//i.test(assetValue);
+                      const urlToOpen = asset.url || (isUrlValue ? assetValue : "");
+                      if (!assetValue) {
+                        return urlToOpen ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-muted-foreground">-</span>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="size-7"
+                                  asChild
+                                >
+                                  <a
+                                    href={urlToOpen}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <ExternalLinkIcon className="size-4" />
+                                  </a>
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">Open URL</TooltipContent>
+                            </Tooltip>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        );
+                      }
+                      if (!isUrlValue) {
+                        return (
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-sm text-foreground truncate max-w-[260px] block">
+                              {truncate(assetValue, 38)}
+                            </span>
+                            {urlToOpen && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-7"
+                                    asChild
+                                  >
+                                    <a
+                                      href={urlToOpen}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <ExternalLinkIcon className="size-4" />
+                                    </a>
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">Open URL</TooltipContent>
+                              </Tooltip>
+                            )}
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="flex items-center gap-2">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-7"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  try {
+                                    await navigator.clipboard.writeText(assetValue);
+                                    toast.success("Copied URL");
+                                  } catch {
+                                    toast.error("Failed to copy URL");
+                                  }
+                                }}
+                              >
+                                <CopyIcon className="size-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">Copy URL</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="size-7"
+                                asChild
+                              >
+                                <a
+                                  href={urlToOpen || assetValue}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <ExternalLinkIcon className="size-4" />
+                                </a>
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">Open URL</TooltipContent>
+                          </Tooltip>
+                          <a
+                            href={urlToOpen || assetValue}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-mono text-sm hover:underline text-primary flex items-center gap-1 truncate max-w-[260px]"
+                            onClick={(e) => e.stopPropagation()}
                           >
-                            <CopyIcon className="size-4" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">Copy URL</TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="size-7"
-                            asChild
-                          >
-                            <a
-                              href={asset.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <ExternalLinkIcon className="size-4" />
-                            </a>
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top">Open URL</TooltipContent>
-                      </Tooltip>
-                      <a
-                        href={asset.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="font-mono text-sm hover:underline text-primary flex items-center gap-1 truncate max-w-[260px]"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {truncate(asset.url, 38)}
-                      </a>
-                    </div>
+                            {truncate(assetValue, 38)}
+                          </a>
+                        </div>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell>
                     <Badge variant={getStatusBadgeVariant(asset.statusCode)}>
@@ -361,8 +436,9 @@ export function HttpAssetsTable({
                       </Tooltip>
                     </div>
                   </TableCell>
-                </TableRow>
-              ))}
+                  </motion.tr>
+                ))}
+              </AnimatePresence>
             </TableBody>
           </Table>
         </div>

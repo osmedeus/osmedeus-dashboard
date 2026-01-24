@@ -30,6 +30,24 @@ type DecisionEdge = {
   kind: "rule" | "case" | "default";
 };
 
+type NormalizedTrigger = {
+  name?: string;
+  on?: string;
+  enabled?: boolean;
+  schedule?: string;
+  path?: string;
+  input?: {
+    type?: string;
+    field?: string;
+    function?: string;
+  };
+  event?: {
+    topic?: string;
+    filters?: string[];
+    filterFunctions?: string[];
+  };
+};
+
 function isSwitchDecision(decision: unknown): decision is Extract<WorkflowDecision, { switch: string }> {
   if (!decision || typeof decision !== "object") return false;
   const d = decision as any;
@@ -75,12 +93,95 @@ function truncateLabel(label: string, maxLen = 30): string {
   return trimmed.substring(0, maxLen) + "...";
 }
 
+function normalizeTriggerList(value: unknown): NormalizedTrigger[] {
+  if (!value) return [];
+  const rawList = Array.isArray(value) ? value : (typeof value === "object" ? [value] : []);
+  return rawList.map((entry) => {
+    const anyEntry = entry as Record<string, unknown>;
+    const event = anyEntry.event && typeof anyEntry.event === "object" ? (anyEntry.event as Record<string, unknown>) : null;
+    const input = anyEntry.input && typeof anyEntry.input === "object" ? (anyEntry.input as Record<string, unknown>) : null;
+    const rawFilters = event?.filters;
+    const rawFilterFunctions = (event as any)?.filter_functions ?? (event as any)?.filterFunctions;
+    const filters = Array.isArray(rawFilters) ? rawFilters.filter((f) => typeof f === "string") as string[] : [];
+    const filterFunctions = Array.isArray(rawFilterFunctions)
+      ? rawFilterFunctions.filter((f) => typeof f === "string") as string[]
+      : [];
+
+    return {
+      name: typeof anyEntry.name === "string" ? anyEntry.name : undefined,
+      on: typeof anyEntry.on === "string" ? anyEntry.on : undefined,
+      enabled: typeof anyEntry.enabled === "boolean" ? anyEntry.enabled : undefined,
+      schedule: typeof anyEntry.schedule === "string" ? anyEntry.schedule : undefined,
+      path: typeof anyEntry.path === "string" ? anyEntry.path : undefined,
+      input: input
+        ? {
+            type: typeof input.type === "string" ? input.type : undefined,
+            field: typeof input.field === "string" ? input.field : undefined,
+            function: typeof (input as any).function === "string" ? (input as any).function : undefined,
+          }
+        : undefined,
+      event: event
+        ? {
+            topic: typeof event.topic === "string" ? event.topic : undefined,
+            filters: filters.length > 0 ? filters : undefined,
+            filterFunctions: filterFunctions.length > 0 ? filterFunctions : undefined,
+          }
+        : undefined,
+    };
+  });
+}
+
+export function getFlowModules(workflow: FlowWorkflowYaml, workflowName: string): WorkflowFlowModule[] {
+  const modules = Array.isArray(workflow.modules) ? workflow.modules : [];
+  if (modules.length > 0) return modules;
+
+  const extendsValue = typeof (workflow as any).extends === "string" ? (workflow as any).extends.trim() : "";
+  if (!extendsValue) return [];
+
+  const override = (workflow as any).override;
+  const overrideParams =
+    override && typeof override === "object" && !Array.isArray(override)
+      ? (override as Record<string, unknown>).params
+      : undefined;
+  const params =
+    overrideParams && typeof overrideParams === "object" && !Array.isArray(overrideParams)
+      ? (overrideParams as Record<string, unknown>)
+      : undefined;
+  const name = workflowName.trim() || extendsValue;
+
+  return [
+    {
+      name,
+      extends: extendsValue,
+      params,
+    },
+  ];
+}
+
 export function parseWorkflowYaml(yamlText: string): ParsedWorkflow {
   const workflowAny = (yaml.load(yamlText) as any) ?? {};
   const kind: "module" | "flow" = workflowAny?.kind === "flow" ? "flow" : "module";
   const workflow = workflowAny as WorkflowYaml;
   const nodes: WorkflowNode[] = [];
   const edges: Edge[] = [];
+  const triggers = normalizeTriggerList(workflowAny?.triggers ?? workflowAny?.trigger);
+  const overrideParams =
+    workflowAny?.override && typeof workflowAny.override === "object" && !Array.isArray(workflowAny.override)
+      ? (workflowAny.override as Record<string, unknown>).params
+      : undefined;
+  const overrideNodeParams =
+    overrideParams && typeof overrideParams === "object" && !Array.isArray(overrideParams)
+      ? (overrideParams as Record<string, unknown>)
+      : null;
+
+  if (triggers.length > 0) {
+    nodes.push({
+      id: "_trigger",
+      type: "trigger",
+      position: { x: 0, y: 0 },
+      data: { label: "Triggers", step: null, module: null, triggers },
+    });
+  }
 
   // Add start node
   nodes.push({
@@ -90,11 +191,54 @@ export function parseWorkflowYaml(yamlText: string): ParsedWorkflow {
     data: { label: "Start", step: null, module: null },
   });
 
+  if (overrideNodeParams) {
+    nodes.push({
+      id: "_override",
+      type: "override",
+      position: { x: 0, y: 0 },
+      data: {
+        label: "Override",
+        step: null,
+        module: {
+          name: "override",
+          params: overrideNodeParams,
+        },
+      },
+    });
+    edges.push({
+      id: `_override->_start`,
+      source: "_override",
+      target: "_start",
+      type: "smoothstep",
+    });
+  }
+
+  if (triggers.length > 0) {
+    edges.push({
+      id: overrideNodeParams ? `_trigger->_override` : `_trigger->_start`,
+      source: "_trigger",
+      target: overrideNodeParams ? "_override" : "_start",
+      type: "smoothstep",
+    });
+  }
+
   if (kind === "module") {
     const wf = workflow as ModuleWorkflowYaml;
     const steps = Array.isArray((wf as any)?.steps) ? (wf as any).steps : [];
     const stepIds = new Set<string>(steps.map((s: any) => (typeof s?.name === "string" ? s.name : "")).filter(Boolean));
     const missingNodeIds = new Set<string>();
+    const outDegree = new Map<string, number>();
+    const decisionTargets = new Set<string>();
+    const hasDependsOn = steps.some(
+      (s: any) => Array.isArray(s?.depends_on) && s.depends_on.filter((d: any) => typeof d === "string").length > 0
+    );
+
+    steps.forEach((step: WorkflowStep) => {
+      const edges = normalizeDecisionEdges((step as any).decision);
+      edges.forEach((edge) => {
+        if (edge.next !== "_end") decisionTargets.add(edge.next);
+      });
+    });
 
     steps.forEach((step: WorkflowStep, index: number) => {
       const nodeId = step.name;
@@ -110,13 +254,39 @@ export function parseWorkflowYaml(yamlText: string): ParsedWorkflow {
         },
       });
 
+      const deps: string[] = Array.isArray((step as any).depends_on)
+        ? (step as any).depends_on.filter((d: any) => typeof d === "string")
+        : [];
       const prevNodeId = index === 0 ? "_start" : steps[index - 1].name;
       const prevStep = index > 0 ? steps[index - 1] : null;
-      const prevHasSwitch = isSwitchDecision((prevStep as any)?.decision);
       const prevDecisionEdges = prevStep ? normalizeDecisionEdges((prevStep as any).decision) : [];
       const hasDecisionToThis = prevDecisionEdges.some((d) => d.next === nodeId);
 
-      if (!prevHasSwitch && !hasDecisionToThis) {
+      if (hasDependsOn) {
+        if (deps.length > 0) {
+          deps.forEach((d) => {
+            if (!stepIds.has(d)) missingNodeIds.add(d);
+            edges.push({
+              id: `${d}->${nodeId}`,
+              source: d,
+              target: nodeId,
+              type: "smoothstep",
+              animated: step.type === "parallel" || step.type === "parallel-steps",
+            });
+            if (stepIds.has(d)) {
+              outDegree.set(d, (outDegree.get(d) || 0) + 1);
+            }
+          });
+        } else if (!decisionTargets.has(nodeId)) {
+          edges.push({
+            id: `_start->${nodeId}`,
+            source: "_start",
+            target: nodeId,
+            type: "smoothstep",
+            animated: step.type === "parallel" || step.type === "parallel-steps",
+          });
+        }
+      } else if (prevDecisionEdges.length === 0 && !hasDecisionToThis && !decisionTargets.has(nodeId)) {
         edges.push({
           id: `${prevNodeId}->${nodeId}`,
           source: prevNodeId,
@@ -124,6 +294,9 @@ export function parseWorkflowYaml(yamlText: string): ParsedWorkflow {
           type: "smoothstep",
           animated: step.type === "parallel" || step.type === "parallel-steps",
         });
+        if (prevNodeId !== "_start" && stepIds.has(prevNodeId)) {
+          outDegree.set(prevNodeId, (outDegree.get(prevNodeId) || 0) + 1);
+        }
       }
 
       const decisionEdges = normalizeDecisionEdges((step as any).decision);
@@ -139,6 +312,7 @@ export function parseWorkflowYaml(yamlText: string): ParsedWorkflow {
             label: truncateLabel(rule.label),
             style: { strokeDasharray: "5 5" },
           });
+          outDegree.set(nodeId, (outDegree.get(nodeId) || 0) + 1);
         });
       }
     });
@@ -156,22 +330,30 @@ export function parseWorkflowYaml(yamlText: string): ParsedWorkflow {
       });
     }
 
-    if (steps.length > 0) {
-      const lastStep = steps[steps.length - 1];
-      const lastHasSwitch = isSwitchDecision((lastStep as any)?.decision);
-      const hasAnyEndEdge = edges.some((e) => e.source === lastStep.name && e.target === "_end");
-      if (!lastHasSwitch && !hasAnyEndEdge) {
-        edges.push({
-          id: `${lastStep.name}->_end`,
-          source: lastStep.name,
-          target: "_end",
-          type: "smoothstep",
-        });
-      }
+    if (steps.length === 0) {
+      edges.push({
+        id: `_start->_end`,
+        source: "_start",
+        target: "_end",
+        type: "smoothstep",
+      });
+    } else {
+      steps.forEach((step: WorkflowStep) => {
+        const od = outDegree.get(step.name) || 0;
+        if (od === 0) {
+          edges.push({
+            id: `${step.name}->_end`,
+            source: step.name,
+            target: "_end",
+            type: "smoothstep",
+          });
+        }
+      });
     }
   } else {
     const wf = workflow as FlowWorkflowYaml;
-    const modules = Array.isArray((wf as any)?.modules) ? ((wf as any).modules as WorkflowFlowModule[]) : [];
+    const name = typeof workflowAny?.name === "string" ? workflowAny.name : "";
+    const modules = getFlowModules(wf, name);
 
     modules.forEach((m) => {
       nodes.push({

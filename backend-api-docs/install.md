@@ -217,7 +217,7 @@ curl -X POST http://localhost:8002/osm/api/registry-install \
 
 ### Install Binaries (Nix-Build Mode)
 
-Installs binaries via Nix package manager using `nix profile install`.
+Installs binaries via Nix package manager using `nix profile add`.
 
 **Install specific binaries via Nix:**
 ```bash

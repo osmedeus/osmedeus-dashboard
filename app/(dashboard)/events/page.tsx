@@ -1,12 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { fetchEventLogs } from "@/lib/api/event-logs";
+import { clearEventLogTables, fetchEventLogs } from "@/lib/api/event-logs";
 import type { EventLogItem } from "@/lib/types/event-log";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { RefreshCcwIcon, EyeIcon } from "lucide-react";
+import { RefreshCcwIcon, EyeIcon, Trash2Icon } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +22,8 @@ export default function EventsPage() {
   const [selected, setSelected] = React.useState<EventLogItem | null>(null);
   const [open, setOpen] = React.useState(false);
   const [detail, setDetail] = React.useState<EventLogItem | null>(null);
+  const [clearOpen, setClearOpen] = React.useState(false);
+  const [clearing, setClearing] = React.useState(false);
   const [page, setPage] = React.useState(1);
   const [pageSize, setPageSize] = React.useState(20);
   const [pagination, setPagination] = React.useState<PaginatedResponse<EventLogItem>["pagination"] | null>(null);
@@ -101,6 +103,14 @@ export default function EventsPage() {
     });
   }, [filteredEvents, sortState.direction, sortState.field]);
 
+  const workspaceOptions = React.useMemo(() => {
+    const values = new Set<string>();
+    events.forEach((event) => {
+      if (event.workspace) values.add(event.workspace);
+    });
+    return Array.from(values).sort((a, b) => a.localeCompare(b));
+  }, [events]);
+
   const toggleSort = (field: EventSortField) => {
     setSortState((prev) => {
       if (prev.field === field) {
@@ -141,6 +151,24 @@ export default function EventsPage() {
     setOpen(true);
   };
 
+  const handleClearTables = async () => {
+    try {
+      setClearing(true);
+      await clearEventLogTables();
+      toast.success("Event tables cleared");
+      setClearOpen(false);
+      if (page === 1) {
+        await load();
+      } else {
+        setPage(1);
+      }
+    } catch (e) {
+      toast.error("Failed to clear tables", { description: e instanceof Error ? e.message : "" });
+    } finally {
+      setClearing(false);
+    }
+  };
+
   const topicToVariant = (t: string): "success" | "info" | "destructive" | "secondary" => {
     const x = t.toLowerCase();
     if (x.includes("completed") || x.includes("success")) return "success";
@@ -162,8 +190,37 @@ export default function EventsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Event Logs</CardTitle>
-          <CardDescription>Filter by topic, workspace, or processed status</CardDescription>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <CardTitle>Event Logs</CardTitle>
+              <CardDescription>Filter by topic, workspace, or processed status</CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => setPage(1)}>
+                <RefreshCcwIcon className="mr-2 size-4" />
+                Apply
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setFilters({});
+                  setQuery("");
+                  setPage(1);
+                  setPageSize(20);
+                }}
+              >
+                Reset
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setClearOpen(true)}
+                className="gap-2 rounded-md border-red-300 text-red-700 hover:bg-red-500/10 hover:shadow-none dark:border-red-800 dark:text-red-300 dark:hover:bg-red-400/10"
+              >
+                <Trash2Icon className="size-4" />
+                Empty Table
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-3 py-2">
@@ -179,12 +236,28 @@ export default function EventsPage() {
               onChange={(e) => setFilters((f) => ({ ...f, topic: e.target.value }))}
               className="max-w-[200px]"
             />
-            <Input
-              placeholder="Workspace"
-              value={filters.workspace ?? ""}
-              onChange={(e) => setFilters((f) => ({ ...f, workspace: e.target.value }))}
-              className="max-w-[200px]"
-            />
+            <Select
+              value={filters.workspace || "all"}
+              onValueChange={(val) => {
+                setFilters((f) => ({
+                  ...f,
+                  workspace: val === "all" ? undefined : val,
+                }));
+                setPage(1);
+              }}
+            >
+              <SelectTrigger className="max-w-[200px]">
+                <SelectValue placeholder="Workspace" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Workspaces</SelectItem>
+                {workspaceOptions.map((workspace) => (
+                  <SelectItem key={workspace} value={workspace}>
+                    {workspace}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select
               value={
                 typeof filters.processed === "boolean"
@@ -225,21 +298,6 @@ export default function EventsPage() {
                 <SelectItem value="100">100</SelectItem>
               </SelectContent>
             </Select>
-            <Button variant="outline" onClick={() => setPage(1)}>
-              <RefreshCcwIcon className="mr-2 size-4" />
-              Apply
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setFilters({});
-                setQuery("");
-                setPage(1);
-                setPageSize(20);
-              }}
-            >
-              Reset
-            </Button>
           </div>
           {loading ? (
             <div className="py-10 text-center text-sm text-muted-foreground">Loading...</div>
@@ -385,6 +443,26 @@ export default function EventsPage() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={clearOpen} onOpenChange={setClearOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Empty event tables</DialogTitle>
+            <DialogDescription>
+              This clears runs, step results, and event logs. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setClearOpen(false)} disabled={clearing}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleClearTables} disabled={clearing} className="gap-2">
+              <Trash2Icon className="size-4" />
+              {clearing ? "Emptying..." : "Empty Table"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>

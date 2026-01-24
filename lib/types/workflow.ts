@@ -69,6 +69,7 @@ export type WorkflowDecision = DecisionRule[] | SwitchDecision;
 export interface WorkflowFlowModule {
   name: string;
   path?: string;
+  extends?: string;
   depends_on?: string[];
   condition?: string;
   params?: Record<string, unknown>;
@@ -81,6 +82,7 @@ export interface WorkflowStep {
   name: string;
   type: WorkflowStepType;
   command?: string;
+  depends_on?: string[];
   speed_args?: string;
   config_args?: string;
   input_args?: string;
@@ -134,6 +136,8 @@ export interface FlowWorkflowYaml {
   name: string;
   kind: "flow";
   description?: string;
+  extends?: string;
+  override?: Record<string, unknown>;
   params?: WorkflowParam[];
   dependencies?: WorkflowDependencies;
   reports?: WorkflowReport[];
@@ -170,13 +174,16 @@ export type WorkflowNodeType =
   | "remote-bash"
   | "container"
   | "module"
+  | "trigger"
   | "start"
-  | "end";
+  | "end"
+  | "override";
 
 export interface WorkflowNodeData extends Record<string, unknown> {
   label: string;
   step: WorkflowStep | null;
   module: WorkflowFlowModule | null;
+  triggers?: Record<string, unknown>[];
   status?: "idle" | "running" | "completed" | "failed";
 }
 

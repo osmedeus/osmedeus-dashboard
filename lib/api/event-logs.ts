@@ -145,3 +145,13 @@ export async function fetchEventLogs(params: {
     },
   };
 }
+
+export async function clearEventLogTables(): Promise<void> {
+  if (isDemoMode()) {
+    return;
+  }
+
+  await http.post(`${API_PREFIX}/database/tables/runs/clear`, { force: true });
+  await http.post(`${API_PREFIX}/database/tables/step_results/clear`, { force: true });
+  await http.post(`${API_PREFIX}/database/tables/event_logs/clear`, { force: true });
+}

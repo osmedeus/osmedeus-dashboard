@@ -15,7 +15,7 @@ curl http://localhost:8002/server-info
 {
   "message": "Oh dear me, how delightful to notice you're taking a look at this! I'm ever so pleased to let you know that osmedeus is ticking along quite nicely, thank you.",
   "version": "v5.0.0",
-  "repo": "https://github.com/osmedeus/osmedeus",
+  "repo": "https://github.com/j3ssie/osmedeus",
   "author": "j3ssie",
   "docs": "https://docs.osmedeus.org"
 }
