@@ -1,4 +1,5 @@
 export type ScanStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
+export type ScanPriority = "low" | "medium" | "high" | string;
 
 export interface Scan {
   id: string;
@@ -9,6 +10,7 @@ export interface Scan {
   target: string;
   params?: Record<string, unknown>;
   status: ScanStatus;
+  priority?: ScanPriority;
   workspace?: string;
   workspacePath?: string;
   startedAt?: Date;

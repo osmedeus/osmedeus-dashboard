@@ -27,7 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { cn, formatDateTime, truncate } from "@/lib/utils";
+import { cn, truncate } from "@/lib/utils";
 import type { Scan } from "@/lib/types/scan";
 import type { SortDirection } from "@/lib/types/asset";
 import {
@@ -55,15 +55,15 @@ export function ScanTable({ scans, isLoading, onRefresh, onSelectScan }: ScanTab
     | "status"
     | "workflow"
     | "target"
+    | "priority"
     | "progress"
     | "trigger"
-    | "updated"
     | "actions";
 
   const [sortState, setSortState] = React.useState<{
     field: ScanSortField;
     direction: SortDirection;
-  }>({ field: "updated", direction: "desc" });
+  }>({ field: "status", direction: "asc" });
   const [duplicateRunId, setDuplicateRunId] = React.useState<string | null>(null);
   const [confirmState, setConfirmState] = React.useState<{
     action: "duplicate" | "cancel" | "delete";
@@ -180,6 +180,21 @@ export function ScanTable({ scans, isLoading, onRefresh, onSelectScan }: ScanTab
     return conf;
   }, []);
 
+  const priorityConfig = React.useMemo(() => {
+    const conf: Record<
+      string,
+      {
+        label: string;
+        className: string;
+      }
+    > = {
+      high: { label: "High", className: "border-red-400/50 text-red-700 dark:text-red-300" },
+      medium: { label: "Medium", className: "border-amber-400/50 text-amber-700 dark:text-amber-300" },
+      low: { label: "Low", className: "border-emerald-400/50 text-emerald-700 dark:text-emerald-300" },
+    };
+    return conf;
+  }, []);
+
   const formatDuration = (scan: Scan): string => {
     if (!scan.startedAt) return "-";
     const end = scan.completedAt ?? new Date();
@@ -208,6 +223,11 @@ export function ScanTable({ scans, isLoading, onRefresh, onSelectScan }: ScanTab
           };
         case "target":
           return { missing: !scan.target, value: scan.target ?? "" };
+        case "priority": {
+          const key = scan.priority ? String(scan.priority).toLowerCase() : "";
+          const order: Record<string, number> = { high: 3, medium: 2, low: 1 };
+          return { missing: !key, value: order[key] ?? 0 };
+        }
         case "progress": {
           const total = scan.totalSteps ?? 0;
           const completed = scan.completedSteps ?? 0;
@@ -218,11 +238,6 @@ export function ScanTable({ scans, isLoading, onRefresh, onSelectScan }: ScanTab
           return {
             missing: !scan.triggerType,
             value: scan.triggerType ?? "",
-          };
-        case "updated":
-          return {
-            missing: !scan.updatedAt,
-            value: scan.updatedAt ? scan.updatedAt.getTime() : 0,
           };
         case "actions":
           return { missing: !scan.target, value: scan.target ?? "" };
@@ -253,7 +268,7 @@ export function ScanTable({ scans, isLoading, onRefresh, onSelectScan }: ScanTab
   }, [scans, sortState.direction, sortState.field]);
 
   if (isLoading) {
-    return <TableSkeleton rows={5} columns={7} />;
+    return <TableSkeleton rows={5} columns={8} />;
   }
 
   if (scans.length === 0) {
@@ -298,6 +313,13 @@ export function ScanTable({ scans, isLoading, onRefresh, onSelectScan }: ScanTab
               Target
             </SortableTableHead>
             <SortableTableHead
+              field="priority"
+              currentSort={sortState}
+              onSort={(f) => toggleSort(f as ScanSortField)}
+            >
+              Priority
+            </SortableTableHead>
+            <SortableTableHead
               field="progress"
               currentSort={sortState}
               onSort={(f) => toggleSort(f as ScanSortField)}
@@ -310,13 +332,6 @@ export function ScanTable({ scans, isLoading, onRefresh, onSelectScan }: ScanTab
               onSort={(f) => toggleSort(f as ScanSortField)}
             >
               Trigger
-            </SortableTableHead>
-            <SortableTableHead
-              field="updated"
-              currentSort={sortState}
-              onSort={(f) => toggleSort(f as ScanSortField)}
-            >
-              Updated
             </SortableTableHead>
             <SortableTableHead
               field="actions"
@@ -344,6 +359,22 @@ export function ScanTable({ scans, isLoading, onRefresh, onSelectScan }: ScanTab
               </TableCell>
               <TableCell>
                 <span className="font-mono text-sm">{truncate(scan.target, 30)}</span>
+              </TableCell>
+              <TableCell>
+                {scan.priority ? (
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "w-fit capitalize",
+                      priorityConfig[String(scan.priority).toLowerCase()]?.className
+                    )}
+                  >
+                    {priorityConfig[String(scan.priority).toLowerCase()]?.label ??
+                      String(scan.priority)}
+                  </Badge>
+                ) : (
+                  <span className="text-sm text-muted-foreground">-</span>
+                )}
               </TableCell>
               <TableCell>
                 {scan.totalSteps > 0 ? (
@@ -385,12 +416,6 @@ export function ScanTable({ scans, isLoading, onRefresh, onSelectScan }: ScanTab
                   {scan.triggerName ? (
                     <span className="text-xs text-muted-foreground">{truncate(scan.triggerName, 22)}</span>
                   ) : null}
-                </div>
-              </TableCell>
-              <TableCell className="text-sm text-muted-foreground">
-                <div className="flex flex-col">
-                  <span>{scan.updatedAt ? formatDateTime(scan.updatedAt) : "-"}</span>
-                  <span className="text-xs text-muted-foreground">{formatDuration(scan)}</span>
                 </div>
               </TableCell>
               <TableCell className="text-right">

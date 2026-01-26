@@ -103,6 +103,7 @@ export default function ScansPage() {
         s.workflowKind,
         s.target,
         s.status,
+        s.priority,
         s.triggerType,
         s.triggerName,
         s.workspacePath,
@@ -163,6 +164,7 @@ export default function ScansPage() {
       { key: "workflowKind", label: "Workflow Kind" },
       { key: "target", label: "Target", mono: true },
       { key: "status", label: "Status" },
+      { key: "priority", label: "Priority" },
       { key: "triggerType", label: "Trigger Type" },
       { key: "triggerName", label: "Trigger Name" },
       { key: "runGroupId", label: "Run Group ID", mono: true },
@@ -221,6 +223,21 @@ export default function ScansPage() {
       cron: { label: "Cron", variant: "warning", icon: <CalendarIcon className="size-3" /> },
       scheduled: { label: "Scheduled", variant: "warning", icon: <CalendarIcon className="size-3" /> },
       manual: { label: "Manual", variant: "secondary", icon: <PlayIcon className="size-3" /> },
+    };
+    return conf;
+  }, []);
+
+  const priorityConfig = React.useMemo(() => {
+    const conf: Record<
+      string,
+      {
+        label: string;
+        className: string;
+      }
+    > = {
+      high: { label: "High", className: "border-red-400/50 text-red-700 dark:text-red-300" },
+      medium: { label: "Medium", className: "border-amber-400/50 text-amber-700 dark:text-amber-300" },
+      low: { label: "Low", className: "border-emerald-400/50 text-emerald-700 dark:text-emerald-300" },
     };
     return conf;
   }, []);
@@ -619,6 +636,21 @@ export default function ScansPage() {
                             }
                             <span>{item.value}</span>
                           </Badge>
+                        ) : item.key === "priority" && selectedScan ? (
+                          selectedScan.priority ? (
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "w-fit capitalize",
+                                priorityConfig[String(selectedScan.priority).toLowerCase()]?.className
+                              )}
+                            >
+                              {priorityConfig[String(selectedScan.priority).toLowerCase()]?.label ??
+                                String(selectedScan.priority)}
+                            </Badge>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">-</span>
+                          )
                         ) : item.key === "errorMessage" ? (
                           <div className="rounded-md border border-destructive/20 bg-destructive/5 px-2 py-1 font-mono text-destructive break-all">
                             {item.value}

@@ -509,6 +509,45 @@ export default function NewScanPage() {
               </div>
             )}
 
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="priority" className="flex items-center gap-2">
+                  <AlertTriangleIcon className="size-4 text-muted-foreground" />
+                  Priority
+                </Label>
+                <Select
+                  value={priority}
+                  onValueChange={(v) => setPriority(v as any)}
+                  disabled={enableSchedule}
+                >
+                  <SelectTrigger id="priority" className="h-9">
+                    <SelectValue placeholder="Select priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">low</SelectItem>
+                    <SelectItem value="medium">medium</SelectItem>
+                    <SelectItem value="high">high</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="timeout" className="flex items-center gap-2">
+                  <TimerIcon className="size-4 text-muted-foreground" />
+                  Timeout (seconds)
+                </Label>
+                <Input
+                  id="timeout"
+                  type="number"
+                  min={1}
+                  placeholder="60"
+                  value={timeout}
+                  onChange={(e) => setTimeoutVal(e.target.value === "" ? "" : Number(e.target.value))}
+                  disabled={enableSchedule}
+                  className="h-9"
+                />
+              </div>
+            </div>
+
             <div className="flex items-center gap-3 pt-2">
               <span className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground">
                 <Settings2Icon className="size-4" />
@@ -683,54 +722,21 @@ export default function NewScanPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="priority" className="flex items-center gap-2">
-                      <AlertTriangleIcon className="size-4 text-muted-foreground" />
-                      Priority
-                    </Label>
-                    <Select value={priority} onValueChange={(v) => setPriority(v as any)}>
-                      <SelectTrigger id="priority" className="h-9">
-                        <SelectValue placeholder="Select priority" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="low">low</SelectItem>
-                        <SelectItem value="medium">medium</SelectItem>
-                        <SelectItem value="high">high</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="timeout" className="flex items-center gap-2">
-                      <TimerIcon className="size-4 text-muted-foreground" />
-                      Timeout (seconds)
-                    </Label>
-                    <Input
-                      id="timeout"
-                      type="number"
-                      min={1}
-                      placeholder="60"
-                      value={timeout}
-                      onChange={(e) => setTimeoutVal(e.target.value === "" ? "" : Number(e.target.value))}
-                      className="h-9"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="runner" className="flex items-center gap-2">
-                      <CpuIcon className="size-4 text-muted-foreground" />
-                      Runner Type
-                    </Label>
-                    <Select value={runnerType} onValueChange={(v) => setRunnerType(v as any)}>
-                      <SelectTrigger id="runner" className="h-9">
-                        <SelectValue placeholder="Select runner" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="local">local</SelectItem>
-                        <SelectItem value="docker">docker</SelectItem>
-                        <SelectItem value="ssh">ssh</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="runner" className="flex items-center gap-2">
+                    <CpuIcon className="size-4 text-muted-foreground" />
+                    Runner Type
+                  </Label>
+                  <Select value={runnerType} onValueChange={(v) => setRunnerType(v as any)}>
+                    <SelectTrigger id="runner" className="h-9">
+                      <SelectValue placeholder="Select runner" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="local">local</SelectItem>
+                      <SelectItem value="docker">docker</SelectItem>
+                      <SelectItem value="ssh">ssh</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="space-y-2">
