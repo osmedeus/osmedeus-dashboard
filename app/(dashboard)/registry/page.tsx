@@ -22,13 +22,10 @@ import {
   CheckCircle2Icon,
   XCircleIcon,
   DownloadIcon,
-  RocketIcon,
   SearchIcon,
-  ExternalLinkIcon,
   RefreshCwIcon,
   GitBranchIcon,
   FolderArchiveIcon,
-  EyeIcon,
   PlusCircleIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -44,14 +41,6 @@ import type {
   RegistryMode,
 } from "@/lib/types/registry";
 import { CardSkeleton, TableSkeleton } from "@/components/shared/loading-skeleton";
-import {
-  Dialog,
-  DialogTrigger,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
 import { SortableTableHead } from "@/components/ui/sortable-table-head";
 import { cn } from "@/lib/utils";
 import type { SortDirection } from "@/lib/types/asset";
@@ -74,22 +63,6 @@ const getTagColor = (tag: string): string => {
   }
   return "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400 border-gray-200 dark:border-gray-700";
 };
-
-function buildSourcesJson(meta: Record<string, unknown>): Record<string, unknown> {
-  const obj: Record<string, unknown> = {};
-  if (typeof meta.desc === "string") obj.desc = meta.desc;
-  if (Array.isArray(meta.tags)) obj.tags = meta.tags;
-  if (typeof meta.version === "string") obj.version = meta.version;
-  if (typeof meta.repo_link === "string") obj.repo_link = meta.repo_link;
-  if (meta.linux) obj.linux = meta.linux;
-  if (meta.darwin) obj.darwin = meta.darwin;
-  if (meta.windows) obj.windows = meta.windows;
-  if (meta["command-linux"]) obj["command-linux"] = meta["command-linux"];
-  if (meta["command-darwin"]) obj["command-darwin"] = meta["command-darwin"];
-  if (typeof meta.installed === "boolean") obj.installed = meta.installed;
-  if (typeof meta.path === "string") obj.path = meta.path;
-  return obj;
-}
 
 type RegistryRow = {
   name: string;
@@ -115,8 +88,7 @@ export default function RegistryPage() {
     | "tags"
     | "description"
     | "optional"
-    | "status"
-    | "actions";
+    | "status";
 
   const [sortState, setSortState] = React.useState<{
     field: RegistrySortField;
@@ -226,8 +198,6 @@ export default function RegistryPage() {
         }
         case "status":
           return { missing: false, value: Number(Boolean(meta.installed)) };
-        case "actions":
-          return { missing: !row.name, value: row.name ?? "" };
       }
     };
 
@@ -335,48 +305,6 @@ export default function RegistryPage() {
     }
   };
 
-  const doInstallAll = async () => {
-    setInstallingBatch(true);
-    try {
-      const res = await installBinaries({
-        install_all: true,
-        install_optional: includeOptional,
-        registry_mode: registryMode,
-      });
-      toast.success(res.message || "Installation complete", {
-        description: `Installed: ${res.installed_count}, Failed: ${res.failed_count}`,
-      });
-      setSelected({});
-      await load();
-    } catch (e) {
-      toast.error("Installation failed", {
-        description: e instanceof Error ? e.message : "",
-      });
-    } finally {
-      setInstallingBatch(false);
-    }
-  };
-
-  const doInstallOne = async (name: string) => {
-    setInstallingBatch(true);
-    try {
-      const res = await installBinaries({
-        names: [name],
-        registry_mode: registryMode,
-      });
-      toast.success(res.message || "Installation complete", {
-        description: `Installed: ${res.installed_count}, Failed: ${res.failed_count}`,
-      });
-      await load();
-    } catch (e) {
-      toast.error("Installation failed", {
-        description: e instanceof Error ? e.message : "",
-      });
-    } finally {
-      setInstallingBatch(false);
-    }
-  };
-
   const doInstallWorkflow = async () => {
     const src = workflowSource.trim();
     if (!src) {
@@ -438,14 +366,6 @@ export default function RegistryPage() {
               </CardDescription>
             </div>
             <div className="flex items-center gap-3">
-              <Button onClick={doInstallAll} disabled={installingBatch} size="sm" variant="secondary">
-                {installingBatch ? (
-                  <LoaderIcon className="mr-2 size-4 animate-spin" />
-                ) : (
-                  <RocketIcon className="mr-2 size-4" />
-                )}
-                Install All
-              </Button>
               <Button variant="outline" size="sm" onClick={load} disabled={loading}>
                 <RefreshCwIcon className="mr-2 size-4" />
                 Refresh
@@ -634,20 +554,12 @@ export default function RegistryPage() {
                 >
                   Status
                 </SortableTableHead>
-                <SortableTableHead
-                  field="actions"
-                  currentSort={sortState}
-                  onSort={(f) => toggleSort(f as RegistrySortField)}
-                  className="w-[140px]"
-                >
-                  Actions
-                </SortableTableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                     No tools found
                   </TableCell>
                 </TableRow>
@@ -655,11 +567,9 @@ export default function RegistryPage() {
                 pageRows.map((row) => {
                   const name = row.name;
                   const meta = row.meta as any;
-                  const sourcesJson = buildSourcesJson(meta);
                   const isInstalled = Boolean(meta.installed);
                   const version = typeof meta.version === "string" ? meta.version : "";
                   const tags = Array.isArray(meta.tags) ? (meta.tags as string[]) : [];
-                  const repoLink = typeof meta.repo_link === "string" ? meta.repo_link : "";
 
                   return (
                     <TableRow key={name} className={cn(selected[name] && "bg-muted/50")}>
@@ -736,51 +646,6 @@ export default function RegistryPage() {
                             Missing
                           </Badge>
                         )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Button
-                            size="sm"
-                            variant={isInstalled ? "outline" : "default"}
-                            onClick={() => doInstallOne(name)}
-                            disabled={installingBatch}
-                          >
-                            {installingBatch ? (
-                              <LoaderIcon className="size-4 animate-spin" />
-                            ) : (
-                              <DownloadIcon className="size-4" />
-                            )}
-                          </Button>
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button size="icon-sm" variant="outline" className="rounded-md" aria-label="View">
-                                <EyeIcon className="size-4" />
-                              </Button>
-                            </DialogTrigger>
-                            <DialogContent className="sm:max-w-2xl">
-                              <DialogHeader>
-                                <DialogTitle>{name}</DialogTitle>
-                                <DialogDescription>
-                                  Download sources and install commands
-                                </DialogDescription>
-                              </DialogHeader>
-                              {repoLink && (
-                                <a
-                                  href={repoLink}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-                                >
-                                  <ExternalLinkIcon className="size-4" />
-                                  {repoLink}
-                                </a>
-                              )}
-                              <pre className="max-h-[50vh] overflow-auto rounded-md bg-muted p-4 text-xs font-mono">
-                                <code>{JSON.stringify(sourcesJson, null, 2)}</code>
-                              </pre>
-                            </DialogContent>
-                          </Dialog>
-                        </div>
                       </TableCell>
                     </TableRow>
                   );
