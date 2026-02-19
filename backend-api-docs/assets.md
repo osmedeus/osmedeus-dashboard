@@ -53,7 +53,7 @@ curl "http://localhost:8002/osm/api/assets?workspace=example.com&offset=50&limit
       "asset_type": "web",
       "tech": ["nginx/1.21.0", "nodejs", "express"],
       "time": "245ms",
-      "remarks": "production",
+      "remarks": ["production"],
       "source": "httpx",
       "created_at": "2025-01-15T10:30:00Z",
       "updated_at": "2025-01-15T10:30:00Z"
@@ -79,7 +79,7 @@ curl "http://localhost:8002/osm/api/assets?workspace=example.com&offset=50&limit
       "asset_type": "web",
       "tech": ["nginx/1.20.0", "php/8.1", "wordpress"],
       "time": "312ms",
-      "remarks": "admin-panel",
+      "remarks": ["admin-panel"],
       "source": "httpx",
       "created_at": "2025-01-15T10:31:00Z",
       "updated_at": "2025-01-15T10:31:00Z"
@@ -117,7 +117,135 @@ curl "http://localhost:8002/osm/api/assets?workspace=example.com&offset=50&limit
 | `asset_type` | string | Asset type classification |
 | `tech` | array | Detected technologies |
 | `time` | string | Response time |
-| `remarks` | string | Custom labels/remarks |
+| `remarks` | array | Custom labels/tags/remarks |
+| `language` | string | Repository/source language |
+| `size` | int | Repository/file size in bytes |
+| `loc` | int | Lines of code (for repository assets) |
+| `blob_content` | string | Large content (raw files, keys, etc.) |
 | `source` | string | Discovery source (httpx, nuclei, etc.) |
 | `created_at` | timestamp | Creation timestamp |
 | `updated_at` | timestamp | Last update timestamp |
+
+---
+
+## Get Asset Statistics
+
+Get unique values for technologies, sources, remarks, and asset types across all assets.
+
+**Get all asset stats:**
+```bash
+curl http://localhost:8002/osm/api/asset-stats \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Filter by workspace:**
+```bash
+curl "http://localhost:8002/osm/api/asset-stats?workspace=example.com" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "technologies": ["nginx/1.21.0", "nodejs", "php/8.1", "wordpress"],
+    "sources": ["httpx", "nuclei"],
+    "remarks": ["admin-panel", "production"],
+    "asset_types": ["http", "dns", "subdomain"]
+  }
+}
+```
+
+**Query Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `workspace` | string | No | Filter stats by workspace name |
+
+**Response Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `technologies` | array | Unique detected technologies across all matching assets |
+| `sources` | array | Unique discovery sources (httpx, nuclei, etc.) |
+| `remarks` | array | Unique custom labels/tags/remarks |
+| `asset_types` | array | Unique asset type classifications (http, dns, subdomain, ip, etc.) |
+
+---
+
+## List Asset Diff Snapshots
+
+Get a paginated list of stored asset diff snapshots. These snapshots capture changes in assets over time.
+
+**List all asset diff snapshots:**
+```bash
+curl http://localhost:8002/osm/api/assets/diffs \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**List with pagination:**
+```bash
+curl "http://localhost:8002/osm/api/assets/diffs?offset=0&limit=50" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Filter by workspace:**
+```bash
+curl "http://localhost:8002/osm/api/assets/diffs?workspace=example.com" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Combine workspace filter with pagination:**
+```bash
+curl "http://localhost:8002/osm/api/assets/diffs?workspace=example.com&offset=0&limit=25" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+**Response:**
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "workspace_name": "example.com",
+      "from_time": "2025-01-14T00:00:00Z",
+      "to_time": "2025-01-15T00:00:00Z",
+      "total_added": 15,
+      "total_removed": 3,
+      "total_changed": 7,
+      "diff_data": "{\"added\":[...],\"removed\":[...],\"changed\":[...]}",
+      "created_at": "2025-01-15T10:30:00Z"
+    },
+    {
+      "id": 2,
+      "workspace_name": "example.com",
+      "from_time": "2025-01-15T00:00:00Z",
+      "to_time": "2025-01-16T00:00:00Z",
+      "total_added": 8,
+      "total_removed": 1,
+      "total_changed": 12,
+      "diff_data": "{\"added\":[...],\"removed\":[...],\"changed\":[...]}",
+      "created_at": "2025-01-16T10:30:00Z"
+    }
+  ],
+  "pagination": {
+    "total": 30,
+    "offset": 0,
+    "limit": 20
+  }
+}
+```
+
+**Asset Diff Snapshot Fields Reference:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | int | Unique snapshot identifier |
+| `workspace_name` | string | Workspace name for this diff |
+| `from_time` | timestamp | Start time of the diff period |
+| `to_time` | timestamp | End time of the diff period |
+| `total_added` | int | Number of new assets added |
+| `total_removed` | int | Number of assets removed |
+| `total_changed` | int | Number of assets that changed |
+| `diff_data` | string | JSON serialized diff data containing added, removed, and changed assets |
+| `created_at` | timestamp | When the snapshot was created |

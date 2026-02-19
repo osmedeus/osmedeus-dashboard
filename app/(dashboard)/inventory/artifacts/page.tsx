@@ -57,6 +57,7 @@ import {
   FolderOpenIcon,
   LoaderIcon,
   RefreshCcwIcon,
+  ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   SearchIcon,
@@ -177,6 +178,7 @@ export default function InventoryArtifactsPage() {
   const [selectedContentType, setSelectedContentType] = React.useState<string>("all");
   const [search, setSearch] = React.useState<string>("");
   const [verifyExistOnly, setVerifyExistOnly] = React.useState<boolean>(true);
+  const [collapsedWorkspaces, setCollapsedWorkspaces] = React.useState<Record<string, boolean>>({});
 
   const [selectedArtifact, setSelectedArtifact] = React.useState<Artifact | null>(null);
   const [detailTab, setDetailTab] = React.useState<string>("details");
@@ -368,19 +370,13 @@ export default function InventoryArtifactsPage() {
     }));
   }, []);
 
-  const sortedArtifacts = React.useMemo(() => {
-    const field = sortState.field;
-    if (!field) return filteredArtifacts;
-
-    const direction = sortState.direction;
-    const factor = direction === "asc" ? 1 : -1;
-
-    const readField = (a: Artifact) => {
-      if (field === "actions") return a.name;
-      return a[field];
-    };
-
-    return [...filteredArtifacts].sort((a, b) => {
+  const compareArtifacts = React.useCallback(
+    (a: Artifact, b: Artifact, field: ArtifactSortField, direction: SortDirection) => {
+      const factor = direction === "asc" ? 1 : -1;
+      const readField = (value: Artifact) => {
+        if (field === "actions") return value.name;
+        return value[field];
+      };
       const av = readField(a);
       const bv = readField(b);
       let cmp = 0;
@@ -396,8 +392,47 @@ export default function InventoryArtifactsPage() {
       }
 
       return cmp * factor;
+    },
+    []
+  );
+
+  const groupedArtifacts = React.useMemo(() => {
+    const groups = new Map<string, Artifact[]>();
+    filteredArtifacts.forEach((a) => {
+      const key = (a.workspace ?? "").trim() || "unknown";
+      const list = groups.get(key);
+      if (list) {
+        list.push(a);
+      } else {
+        groups.set(key, [a]);
+      }
     });
-  }, [filteredArtifacts, sortState]);
+
+    const keys = Array.from(groups.keys()).sort((a, b) => {
+      const cmp = a.localeCompare(b);
+      if (sortState.field === "workspace") {
+        return cmp * (sortState.direction === "asc" ? 1 : -1);
+      }
+      return cmp;
+    });
+
+    return keys.map((key) => {
+      const items = groups.get(key) ?? [];
+      const sortedItems = sortState.field
+        ? [...items].sort((a, b) =>
+            compareArtifacts(a, b, sortState.field as ArtifactSortField, sortState.direction)
+          )
+        : items;
+      return { workspace: key, items: sortedItems };
+    });
+  }, [compareArtifacts, filteredArtifacts, sortState]);
+
+  const toggleWorkspaceCollapse = React.useCallback((workspace: string) => {
+    setCollapsedWorkspaces((prev) => ({
+      ...prev,
+      [workspace]: !prev[workspace],
+    }));
+  }, []);
 
   const contentLanguage = React.useMemo(() => {
     return inferLanguageForArtifact(selectedArtifact);
@@ -881,7 +916,7 @@ export default function InventoryArtifactsPage() {
             <div className="p-6">
               <TableSkeleton rows={10} columns={6} />
             </div>
-          ) : sortedArtifacts.length === 0 ? (
+          ) : filteredArtifacts.length === 0 ? (
             <div className="min-h-[360px] flex items-center justify-center">
               <EmptyState
                 icon={hasActiveFilters ? SearchXIcon : ArchiveIcon}
@@ -960,7 +995,46 @@ export default function InventoryArtifactsPage() {
                     </TableHeader>
                     <TableBody>
                       <AnimatePresence initial={false} mode="popLayout">
-                        {sortedArtifacts.map((a) => (
+                        {groupedArtifacts.flatMap((group) => {
+                          const isCollapsed = !!collapsedWorkspaces[group.workspace];
+                          return [
+                            <motion.tr
+                              key={`group-${group.workspace}`}
+                              data-slot="table-row"
+                              layout="position"
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              exit={{ opacity: 0 }}
+                              transition={{ duration: 0.16, ease: "easeOut" }}
+                              className="bg-muted/30"
+                            >
+                              <TableCell colSpan={6} className="py-2">
+                                <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    className="rounded-md"
+                                    onClick={() => toggleWorkspaceCollapse(group.workspace)}
+                                    aria-label={`Toggle ${group.workspace}`}
+                                  >
+                                    {isCollapsed ? (
+                                      <ChevronRightIcon className="size-3.5" />
+                                    ) : (
+                                      <ChevronDownIcon className="size-3.5" />
+                                    )}
+                                  </Button>
+                                  <FolderOpenIcon className="size-3.5" />
+                                  <span className="font-mono">{group.workspace}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    ({group.items.length})
+                                  </span>
+                                </div>
+                              </TableCell>
+                            </motion.tr>,
+                            ...(isCollapsed
+                              ? []
+                              : group.items.map((a) => (
                           <motion.tr
                             key={a.id}
                             data-slot="table-row"
@@ -1012,7 +1086,9 @@ export default function InventoryArtifactsPage() {
                             </div>
                           </TableCell>
                           </motion.tr>
-                        ))}
+                              ))),
+                          ];
+                        })}
                       </AnimatePresence>
                     </TableBody>
                   </Table>

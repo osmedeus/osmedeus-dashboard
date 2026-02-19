@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
-import { fetchWorkspaces, fetchHttpAssets } from "@/lib/api/assets";
+import { fetchWorkspaces, fetchHttpAssets, fetchAssetStats } from "@/lib/api/assets";
 import type { Workspace } from "@/lib/types/asset";
 import type { PaginatedResponse } from "@/lib/types/api";
 import type {
@@ -10,6 +10,7 @@ import type {
   HttpAssetFilters,
   AssetSortState,
   AssetSortField,
+  AssetStats,
 } from "@/lib/types/asset";
 import {
   Card,
@@ -30,7 +31,10 @@ import { Badge } from "@/components/ui/badge";
 import { RefreshCcwIcon } from "lucide-react";
 import { toast } from "sonner";
 import { AssetFilters } from "@/components/assets/asset-filters";
-import { HttpAssetsTable } from "@/components/assets/http-assets-table";
+import {
+  HttpAssetsTable,
+  type HttpAssetsColumnKey,
+} from "@/components/assets/http-assets-table";
 import { AssetDetailDialog } from "@/components/assets/asset-detail-dialog";
 import { sortAssets } from "@/lib/utils";
 
@@ -46,6 +50,8 @@ export default function InventoryAssetsPage() {
     React.useState<PaginatedResponse<HttpAsset> | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
   const [filters, setFilters] = React.useState<HttpAssetFilters>({});
+  const [pageSize, setPageSize] = React.useState(50);
+  const [assetStats, setAssetStats] = React.useState<AssetStats | null>(null);
   const [page, setPage] = React.useState(1);
   const [selectedAsset, setSelectedAsset] = React.useState<HttpAsset | null>(
     null
@@ -55,6 +61,36 @@ export default function InventoryAssetsPage() {
     field: null,
     direction: "asc",
   });
+  const [visibleColumns, setVisibleColumns] = React.useState<
+    Record<HttpAssetsColumnKey, boolean>
+  >(() => ({
+    id: false,
+    workspace: false,
+    assetValue: true,
+    url: false,
+    input: false,
+    scheme: false,
+    method: false,
+    path: false,
+    statusCode: true,
+    contentType: false,
+    contentLength: true,
+    title: true,
+    words: false,
+    lines: false,
+    hostIp: true,
+    dnsRecords: false,
+    tls: false,
+    assetType: true,
+    remarks: true,
+    technologies: true,
+    responseTime: false,
+    source: false,
+    createdAt: false,
+    updatedAt: false,
+    lastSeenAt: false,
+    actions: true,
+  }));
   const lastFetchRef = React.useRef<number>(0);
   const forceNextRef = React.useRef<boolean>(false);
   const COOLDOWN_MS = 20000;
@@ -89,6 +125,25 @@ export default function InventoryAssetsPage() {
     setSelectedWorkspace(String(matchByName.id));
   }, [workspaces, selectedWorkspace]);
 
+  React.useEffect(() => {
+    const loadStats = async () => {
+      try {
+        const effectiveWorkspace =
+          selectedWorkspace === "all"
+            ? undefined
+            : (workspaces.find((w) => String(w.id) === selectedWorkspace)?.name ??
+              selectedWorkspace);
+        const stats = await fetchAssetStats(effectiveWorkspace);
+        setAssetStats(stats);
+      } catch (e) {
+        toast.error("Failed to load asset statistics", {
+          description: e instanceof Error ? e.message : "",
+        });
+      }
+    };
+    loadStats();
+  }, [selectedWorkspace, workspaces]);
+
   const loadAssets = React.useCallback(
     async (force?: boolean) => {
       const now = Date.now();
@@ -102,7 +157,7 @@ export default function InventoryAssetsPage() {
               selectedWorkspace);
         const res = await fetchHttpAssets(effectiveWorkspace, {
           page,
-          pageSize: 50,
+          pageSize,
           filters,
         });
         const tp = res.pagination?.totalPages ?? 0;
@@ -121,7 +176,7 @@ export default function InventoryAssetsPage() {
         setIsLoading(false);
       }
     },
-    [selectedWorkspace, page, filters, workspaces]
+    [selectedWorkspace, page, pageSize, filters, workspaces]
   );
 
   React.useEffect(() => {
@@ -166,14 +221,114 @@ export default function InventoryAssetsPage() {
         const wanted = filters.technologies.map((t) => t.trim().toLowerCase());
         if (!wanted.some((t) => techSet.has(t))) return false;
       }
+      if (filters.assetTypes?.length) {
+        const assetType = String(a.assetType ?? "").trim().toLowerCase();
+        const wanted = filters.assetTypes.map((t) => t.trim().toLowerCase());
+        if (!wanted.includes(assetType)) return false;
+      }
+      if (filters.sources?.length) {
+        const source = String(a.source ?? "").trim().toLowerCase();
+        const wanted = filters.sources.map((t) => t.trim().toLowerCase());
+        if (!wanted.includes(source)) return false;
+      }
+      if (filters.remarks?.length) {
+        const remarks = Array.isArray(a.remarks)
+          ? a.remarks
+          : a.remarks
+            ? [a.remarks]
+            : [];
+        const remarkSet = new Set(
+          remarks.map((t) => String(t).trim().toLowerCase()).filter(Boolean)
+        );
+        const wanted = filters.remarks.map((t) => t.trim().toLowerCase());
+        if (!wanted.some((t) => remarkSet.has(t))) return false;
+      }
       return true;
     });
-  }, [assetsResponse?.data, filters.search, filters.statusCodes, filters.technologies]);
+  }, [
+    assetsResponse?.data,
+    filters.search,
+    filters.statusCodes,
+    filters.technologies,
+    filters.assetTypes,
+    filters.sources,
+    filters.remarks,
+  ]);
 
   // Apply client-side sorting
   const sortedAssets = React.useMemo(() => {
     return sortAssets(clientFilteredAssets, sortState.field, sortState.direction);
   }, [clientFilteredAssets, sortState]);
+
+  const fallbackAssetTypes = React.useMemo(() => {
+    const values = (assetsResponse?.data ?? [])
+      .map((asset) => asset.assetType)
+      .filter((value) => value && value.trim().length > 0);
+    return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
+  }, [assetsResponse?.data]);
+
+  const fallbackSources = React.useMemo(() => {
+    const values = (assetsResponse?.data ?? [])
+      .map((asset) => asset.source)
+      .filter((value) => value && value.trim().length > 0);
+    return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
+  }, [assetsResponse?.data]);
+
+  const fallbackRemarks = React.useMemo(() => {
+    const values = (assetsResponse?.data ?? [])
+      .flatMap((asset) =>
+        Array.isArray(asset.remarks)
+          ? asset.remarks
+          : asset.remarks
+            ? [asset.remarks]
+            : []
+      )
+      .map((value) => String(value).trim())
+      .filter((value) => value.length > 0);
+    return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
+  }, [assetsResponse?.data]);
+
+  const assetTypeOptions =
+    assetStats?.assetTypes?.length ? assetStats.assetTypes : fallbackAssetTypes;
+  const sourceOptions =
+    assetStats?.sources?.length ? assetStats.sources : fallbackSources;
+  const technologyOptions =
+    assetStats?.technologies?.length ? assetStats.technologies : [];
+  const remarkOptions =
+    assetStats?.remarks?.length ? assetStats.remarks : fallbackRemarks;
+
+  const columnOptions = React.useMemo(
+    () => [
+      { key: "id", label: "ID" },
+      { key: "workspace", label: "Workspace" },
+      { key: "assetValue", label: "Asset Value" },
+      { key: "url", label: "URL" },
+      { key: "input", label: "Input" },
+      { key: "scheme", label: "Scheme" },
+      { key: "method", label: "Method" },
+      { key: "path", label: "Path" },
+      { key: "statusCode", label: "Status Code" },
+      { key: "contentType", label: "Content Type" },
+      { key: "contentLength", label: "Content Length" },
+      { key: "title", label: "Title" },
+      { key: "words", label: "Words" },
+      { key: "lines", label: "Lines" },
+      { key: "hostIp", label: "Host IP" },
+      { key: "dnsRecords", label: "DNS Records" },
+      { key: "tls", label: "TLS" },
+      { key: "assetType", label: "Asset Type" },
+      { key: "technologies", label: "Tech" },
+      { key: "responseTime", label: "Time" },
+      { key: "remarks", label: "Remarks" },
+      { key: "source", label: "Source" },
+      { key: "createdAt", label: "Created At" },
+      { key: "updatedAt", label: "Updated At" },
+      { key: "lastSeenAt", label: "Last Seen At" },
+      { key: "actions", label: "Actions" },
+    ],
+    []
+  );
+  const pageSizeOptions = React.useMemo(() => [50, 100, 200, 500], []);
 
   // Check if any filters are active
   const hasActiveFilters = React.useMemo(() => {
@@ -181,6 +336,9 @@ export default function InventoryAssetsPage() {
       filters.search ||
       filters.statusCodes?.length ||
       filters.technologies?.length ||
+      filters.assetTypes?.length ||
+      filters.sources?.length ||
+      filters.remarks?.length ||
       filters.contentTypes?.length ||
       filters.tlsVersion ||
       filters.location
@@ -288,7 +446,24 @@ export default function InventoryAssetsPage() {
 
         {/* Filters section */}
         <div className="border-b p-4 bg-muted/10">
-          <AssetFilters filters={filters} onFiltersChange={handleFiltersChange} />
+          <AssetFilters
+            filters={filters}
+            onFiltersChange={handleFiltersChange}
+            technologyOptions={technologyOptions}
+            assetTypeOptions={assetTypeOptions}
+            sourceOptions={sourceOptions}
+            remarkOptions={remarkOptions}
+            columnOptions={columnOptions}
+            visibleColumns={visibleColumns}
+            onVisibleColumnsChange={setVisibleColumns}
+            pageSize={pageSize}
+            pageSizeOptions={pageSizeOptions}
+            onPageSizeChange={(size) => {
+              setPageSize(size);
+              setPage(1);
+              forceNextRef.current = true;
+            }}
+          />
         </div>
 
         {/* Table section */}
@@ -307,6 +482,7 @@ export default function InventoryAssetsPage() {
               setDialogOpen(true);
             }}
             hasActiveFilters={hasActiveFilters}
+            visibleColumns={visibleColumns}
           />
         </CardContent>
       </Card>

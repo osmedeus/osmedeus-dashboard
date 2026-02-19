@@ -45,10 +45,11 @@ export interface HttpAsset {
   assetType: string;
   technologies: string[];
   responseTime?: string;
-  remarks?: string;
+  remarks?: string | string[];
   source: string;
   createdAt: Date;
   updatedAt: Date;
+  lastSeenAt?: Date;
 }
 
 export interface Subdomain {
@@ -78,6 +79,13 @@ export interface DashboardStats {
   vulnerabilities: number;
 }
 
+export interface AssetStats {
+  technologies: string[];
+  sources: string[];
+  remarks: string[];
+  assetTypes: string[];
+}
+
 // Filter types for assets table
 export interface HttpAssetFilters {
   search?: string;
@@ -86,6 +94,9 @@ export interface HttpAssetFilters {
   maxContentLength?: number;
   location?: string;
   technologies?: string[];
+  assetTypes?: string[];
+  sources?: string[];
+  remarks?: string[];
   contentTypes?: string[];
   tlsVersion?: string;
 }
@@ -97,6 +108,7 @@ export type AssetSortField =
   | "contentLength"
   | "title"
   | "hostIp"
+  | "remarks"
   | "technologies"
   | "responseTime"
   | "actions";

@@ -9,9 +9,9 @@ import { AssetFilters } from "@/components/assets/asset-filters";
 import { HttpAssetsTable } from "@/components/assets/http-assets-table";
 import { ErrorState } from "@/components/shared/error-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { fetchWorkspace, fetchHttpAssets } from "@/lib/api/assets";
+import { fetchWorkspace, fetchHttpAssets, fetchAssetStats } from "@/lib/api/assets";
 import { formatNumber } from "@/lib/utils";
-import type { Workspace, HttpAsset, HttpAssetFilters, AssetSortState, AssetSortField } from "@/lib/types/asset";
+import type { Workspace, HttpAsset, HttpAssetFilters, AssetSortState, AssetSortField, AssetStats } from "@/lib/types/asset";
 import { sortAssets } from "@/lib/utils";
 import type { PaginatedResponse } from "@/lib/types/api";
 import { ArrowLeftIcon, GlobeIcon, LinkIcon, AlertTriangleIcon } from "lucide-react";
@@ -25,8 +25,10 @@ export default function WorkspaceDetailClient({ workspaceId }: WorkspaceDetailCl
   const [assetsResponse, setAssetsResponse] = React.useState<PaginatedResponse<HttpAsset> | null>(null);
   const [isLoadingWorkspace, setIsLoadingWorkspace] = React.useState(true);
   const [isLoadingAssets, setIsLoadingAssets] = React.useState(true);
+  const [assetStats, setAssetStats] = React.useState<AssetStats | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [filters, setFilters] = React.useState<HttpAssetFilters>({});
+  const [pageSize, setPageSize] = React.useState(50);
   const [page, setPage] = React.useState(1);
   const [sortState, setSortState] = React.useState<AssetSortState>({
     field: null,
@@ -49,12 +51,25 @@ export default function WorkspaceDetailClient({ workspaceId }: WorkspaceDetailCl
   }, [workspaceId]);
 
   React.useEffect(() => {
+    const loadStats = async () => {
+      try {
+        const workspaceName = workspace?.name ?? workspaceId;
+        const stats = await fetchAssetStats(workspaceName);
+        setAssetStats(stats);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to load asset statistics");
+      }
+    };
+    loadStats();
+  }, [workspace?.name, workspaceId]);
+
+  React.useEffect(() => {
     const loadAssets = async () => {
       try {
         setIsLoadingAssets(true);
         const data = await fetchHttpAssets(workspaceId, {
           page,
-          pageSize: 20,
+          pageSize,
           filters,
         });
         setAssetsResponse(data);
@@ -65,7 +80,7 @@ export default function WorkspaceDetailClient({ workspaceId }: WorkspaceDetailCl
       }
     };
     loadAssets();
-  }, [workspaceId, page, filters]);
+  }, [workspaceId, page, pageSize, filters]);
 
   const handleFiltersChange = React.useCallback((newFilters: HttpAssetFilters) => {
     setFilters(newFilters);
@@ -101,24 +116,96 @@ export default function WorkspaceDetailClient({ workspaceId }: WorkspaceDetailCl
         const wanted = filters.technologies.map((t) => t.trim().toLowerCase());
         if (!wanted.some((t) => techSet.has(t))) return false;
       }
+      if (filters.assetTypes?.length) {
+        const assetType = String(a.assetType ?? "").trim().toLowerCase();
+        const wanted = filters.assetTypes.map((t) => t.trim().toLowerCase());
+        if (!wanted.includes(assetType)) return false;
+      }
+      if (filters.sources?.length) {
+        const source = String(a.source ?? "").trim().toLowerCase();
+        const wanted = filters.sources.map((t) => t.trim().toLowerCase());
+        if (!wanted.includes(source)) return false;
+      }
+      if (filters.remarks?.length) {
+        const remarks = Array.isArray(a.remarks)
+          ? a.remarks
+          : a.remarks
+            ? [a.remarks]
+            : [];
+        const remarkSet = new Set(
+          remarks.map((t) => String(t).trim().toLowerCase()).filter(Boolean)
+        );
+        const wanted = filters.remarks.map((t) => t.trim().toLowerCase());
+        if (!wanted.some((t) => remarkSet.has(t))) return false;
+      }
       return true;
     });
-  }, [assetsResponse?.data, filters.search, filters.statusCodes, filters.technologies]);
+  }, [
+    assetsResponse?.data,
+    filters.search,
+    filters.statusCodes,
+    filters.technologies,
+    filters.assetTypes,
+    filters.sources,
+    filters.remarks,
+  ]);
 
   const sortedAssets = React.useMemo(() => {
     return sortAssets(clientFilteredAssets, sortState.field, sortState.direction);
   }, [clientFilteredAssets, sortState]);
+
+  const fallbackAssetTypes = React.useMemo(() => {
+    const values = (assetsResponse?.data ?? [])
+      .map((asset) => asset.assetType)
+      .filter((value) => value && value.trim().length > 0);
+    return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
+  }, [assetsResponse?.data]);
+
+  const fallbackSources = React.useMemo(() => {
+    const values = (assetsResponse?.data ?? [])
+      .map((asset) => asset.source)
+      .filter((value) => value && value.trim().length > 0);
+    return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
+  }, [assetsResponse?.data]);
+
+  const fallbackRemarks = React.useMemo(() => {
+    const values = (assetsResponse?.data ?? [])
+      .flatMap((asset) =>
+        Array.isArray(asset.remarks)
+          ? asset.remarks
+          : asset.remarks
+            ? [asset.remarks]
+            : []
+      )
+      .map((value) => String(value).trim())
+      .filter((value) => value.length > 0);
+    return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
+  }, [assetsResponse?.data]);
+
+  const assetTypeOptions =
+    assetStats?.assetTypes?.length ? assetStats.assetTypes : fallbackAssetTypes;
+  const sourceOptions =
+    assetStats?.sources?.length ? assetStats.sources : fallbackSources;
+  const technologyOptions =
+    assetStats?.technologies?.length ? assetStats.technologies : [];
+  const remarkOptions =
+    assetStats?.remarks?.length ? assetStats.remarks : fallbackRemarks;
 
   const hasActiveFilters = React.useMemo(() => {
     return !!(
       filters.search ||
       filters.statusCodes?.length ||
       filters.technologies?.length ||
+      filters.assetTypes?.length ||
+      filters.sources?.length ||
+      filters.remarks?.length ||
       filters.contentTypes?.length ||
       filters.tlsVersion ||
       filters.location
     );
   }, [filters]);
+
+  const pageSizeOptions = React.useMemo(() => [50, 100, 200, 500], []);
 
   if (error && !workspace) {
     return <ErrorState message={error} />;
@@ -193,7 +280,20 @@ export default function WorkspaceDetailClient({ workspaceId }: WorkspaceDetailCl
         </div>
       )}
 
-      <AssetFilters filters={filters} onFiltersChange={handleFiltersChange} />
+      <AssetFilters
+        filters={filters}
+        onFiltersChange={handleFiltersChange}
+        technologyOptions={technologyOptions}
+        assetTypeOptions={assetTypeOptions}
+        sourceOptions={sourceOptions}
+        remarkOptions={remarkOptions}
+        pageSize={pageSize}
+        pageSizeOptions={pageSizeOptions}
+        onPageSizeChange={(size) => {
+          setPageSize(size);
+          setPage(1);
+        }}
+      />
 
       <Card>
         <CardHeader>

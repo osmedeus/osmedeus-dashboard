@@ -19,6 +19,7 @@ import {
   BarChart3Icon,
   GlobeIcon,
   BadgeCheckIcon,
+  Columns3Icon,
   ListIcon,
   SearchIcon,
   RotateCcwIcon,
@@ -160,6 +161,40 @@ export default function VulnerabilitiesPage() {
     field: VulnerabilitySortField | null;
     direction: SortDirection;
   }>({ field: null, direction: "asc" });
+
+  const [visibleColumns, setVisibleColumns] = React.useState<Record<string, boolean>>({
+    severity: true,
+    confidence: true,
+    title: true,
+    asset: true,
+    tags: true,
+    actions: true,
+  });
+
+  const columnOptions = React.useMemo(
+    () => [
+      { key: "severity", label: "Severity" },
+      { key: "confidence", label: "Confidence" },
+      { key: "title", label: "Title" },
+      { key: "asset", label: "Asset" },
+      { key: "tags", label: "Tags" },
+      { key: "actions", label: "Actions" },
+    ],
+    []
+  );
+
+  const visibleColumnCount = React.useMemo(
+    () => Object.values(visibleColumns).filter(Boolean).length,
+    [visibleColumns]
+  );
+
+  const handleColumnToggle = React.useCallback((key: string) => {
+    setVisibleColumns((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      if (Object.values(next).some(Boolean)) return next;
+      return prev;
+    });
+  }, []);
 
   const toggleSort = React.useCallback((field: VulnerabilitySortField) => {
     setSortState((prev) => {
@@ -592,6 +627,44 @@ export default function VulnerabilitiesPage() {
                 )}
               </PopoverContent>
             </Popover>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline">
+                  <span className="flex items-center gap-2">
+                    <Columns3Icon className="size-4 text-muted-foreground" />
+                    <span>Columns</span>
+                    {visibleColumnCount > 0 &&
+                      visibleColumnCount !== columnOptions.length && (
+                        <Badge variant="secondary" className="px-1.5 py-0 text-xs">
+                          {visibleColumnCount}
+                        </Badge>
+                      )}
+                  </span>
+                  <ChevronsUpDownIcon className="ml-2 size-4 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[220px] p-2" align="start">
+                <div className="space-y-1">
+                  {columnOptions.map((option) => {
+                    const checked = visibleColumns[option.key] ?? false;
+                    const disableToggle = checked && visibleColumnCount <= 1;
+                    return (
+                      <label
+                        key={option.key}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded-sm hover:bg-muted cursor-pointer text-sm"
+                      >
+                        <Checkbox
+                          checked={checked}
+                          disabled={disableToggle}
+                          onCheckedChange={() => handleColumnToggle(option.key)}
+                        />
+                        <span>{option.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </PopoverContent>
+            </Popover>
             <Select
               value={String(pageSize)}
               onValueChange={(val) => {
@@ -627,99 +700,123 @@ export default function VulnerabilitiesPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
-                    <th className="p-2 text-left">
-                      <button type="button" className="flex items-center gap-1" onClick={() => toggleSort("severity")}>
-                        <span>Severity</span>
-                        {renderSortIcon("severity")}
-                      </button>
-                    </th>
-                    <th className="p-2 text-left">
-                      <button type="button" className="flex items-center gap-1" onClick={() => toggleSort("confidence")}>
-                        <span>Confidence</span>
-                        {renderSortIcon("confidence")}
-                      </button>
-                    </th>
-                    <th className="p-2 text-left">
-                      <button type="button" className="flex items-center gap-1" onClick={() => toggleSort("title")}>
-                        <span>Title</span>
-                        {renderSortIcon("title")}
-                      </button>
-                    </th>
-                    <th className="p-2 text-left">
-                      <button type="button" className="flex items-center gap-1" onClick={() => toggleSort("asset")}>
-                        <span>Asset</span>
-                        {renderSortIcon("asset")}
-                      </button>
-                    </th>
-                    <th className="p-2 text-left">
-                      <button type="button" className="flex items-center gap-1" onClick={() => toggleSort("tags")}>
-                        <span>Tags</span>
-                        {renderSortIcon("tags")}
-                      </button>
-                    </th>
-                    <th className="p-2 text-left">
-                      <button type="button" className="flex items-center gap-1" onClick={() => toggleSort("actions")}>
-                        <span>Actions</span>
-                        {renderSortIcon("actions")}
-                      </button>
-                    </th>
+                    {visibleColumns.severity && (
+                      <th className="p-2 text-left">
+                        <button type="button" className="flex items-center gap-1" onClick={() => toggleSort("severity")}>
+                          <span>Severity</span>
+                          {renderSortIcon("severity")}
+                        </button>
+                      </th>
+                    )}
+                    {visibleColumns.confidence && (
+                      <th className="p-2 text-left">
+                        <button type="button" className="flex items-center gap-1" onClick={() => toggleSort("confidence")}>
+                          <span>Confidence</span>
+                          {renderSortIcon("confidence")}
+                        </button>
+                      </th>
+                    )}
+                    {visibleColumns.title && (
+                      <th className="p-2 text-left">
+                        <button type="button" className="flex items-center gap-1" onClick={() => toggleSort("title")}>
+                          <span>Title</span>
+                          {renderSortIcon("title")}
+                        </button>
+                      </th>
+                    )}
+                    {visibleColumns.asset && (
+                      <th className="p-2 text-left">
+                        <button type="button" className="flex items-center gap-1" onClick={() => toggleSort("asset")}>
+                          <span>Asset</span>
+                          {renderSortIcon("asset")}
+                        </button>
+                      </th>
+                    )}
+                    {visibleColumns.tags && (
+                      <th className="p-2 text-left">
+                        <button type="button" className="flex items-center gap-1" onClick={() => toggleSort("tags")}>
+                          <span>Tags</span>
+                          {renderSortIcon("tags")}
+                        </button>
+                      </th>
+                    )}
+                    {visibleColumns.actions && (
+                      <th className="p-2 text-left">
+                        <button type="button" className="flex items-center gap-1" onClick={() => toggleSort("actions")}>
+                          <span>Actions</span>
+                          {renderSortIcon("actions")}
+                        </button>
+                      </th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
                   {sortedVulnerabilities.map((v) => (
                     <tr key={v.id} className="border-b">
-                      <td className="p-2">
-                        <SeverityBadge severity={v.severity} />
-                      </td>
-                      <td className="p-2">
-                        {v.confidence ? (
-                          <Badge variant="outline" className="text-xs">
-                            {v.confidence}
-                          </Badge>
-                        ) : (
-                          "-"
-                        )}
-                      </td>
-                      <td className="p-2">
-                        <div className="max-w-[300px]">
-                          <p className="font-medium truncate">{v.vulnTitle || "-"}</p>
-                          {v.vulnInfo && (
-                            <p className="text-xs text-muted-foreground truncate">
-                              {v.vulnInfo}
-                            </p>
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-2">
-                        <span className="font-mono text-xs text-muted-foreground max-w-[200px] truncate block">
-                          {v.assetValue || "-"}
-                        </span>
-                      </td>
-                      <td className="p-2">
-                        <div className="flex flex-wrap gap-1 max-w-[150px]">
-                          {v.tags.slice(0, 3).map((tag, i) => (
-                            <Badge key={i} variant="outline" className={`text-xs ${getTagColor(tag)}`}>
-                              {tag}
+                      {visibleColumns.severity && (
+                        <td className="p-2">
+                          <SeverityBadge severity={v.severity} />
+                        </td>
+                      )}
+                      {visibleColumns.confidence && (
+                        <td className="p-2">
+                          {v.confidence ? (
+                            <Badge variant="outline" className="text-xs">
+                              {v.confidence}
                             </Badge>
-                          ))}
-                          {v.tags.length > 3 && (
-                            <Badge variant="outline" className="text-xs bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400">
-                              +{v.tags.length - 3}
-                            </Badge>
+                          ) : (
+                            "-"
                           )}
-                        </div>
-                      </td>
-                      <td className="p-2">
-                        <Button
-                          variant="outline"
-                          size="icon-sm"
-                          className="rounded-md"
-                          onClick={() => openDetail(v)}
-                          aria-label="View"
-                        >
-                          <EyeIcon className="size-4" />
-                        </Button>
-                      </td>
+                        </td>
+                      )}
+                      {visibleColumns.title && (
+                        <td className="p-2">
+                          <div className="max-w-[300px]">
+                            <p className="font-medium truncate">{v.vulnTitle || "-"}</p>
+                            {v.vulnInfo && (
+                              <p className="text-xs text-muted-foreground truncate">
+                                {v.vulnInfo}
+                              </p>
+                            )}
+                          </div>
+                        </td>
+                      )}
+                      {visibleColumns.asset && (
+                        <td className="p-2">
+                          <span className="font-mono text-xs text-muted-foreground max-w-[200px] truncate block">
+                            {v.assetValue || "-"}
+                          </span>
+                        </td>
+                      )}
+                      {visibleColumns.tags && (
+                        <td className="p-2">
+                          <div className="flex flex-wrap gap-1 max-w-[150px]">
+                            {v.tags.slice(0, 3).map((tag, i) => (
+                              <Badge key={i} variant="outline" className={`text-xs ${getTagColor(tag)}`}>
+                                {tag}
+                              </Badge>
+                            ))}
+                            {v.tags.length > 3 && (
+                              <Badge variant="outline" className="text-xs bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                                +{v.tags.length - 3}
+                              </Badge>
+                            )}
+                          </div>
+                        </td>
+                      )}
+                      {visibleColumns.actions && (
+                        <td className="p-2">
+                          <Button
+                            variant="outline"
+                            size="icon-sm"
+                            className="rounded-md"
+                            onClick={() => openDetail(v)}
+                            aria-label="View"
+                          >
+                            <EyeIcon className="size-4" />
+                          </Button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

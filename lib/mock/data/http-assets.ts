@@ -58,6 +58,7 @@ function generateMockHttpAssets(workspaceId: string, count: number): HttpAsset[]
       source: "httpx",
       createdAt: new Date(Date.now() - Math.floor(Math.random() * 7 * 24 * 60 * 60 * 1000)),
       updatedAt: new Date(Date.now() - Math.floor(Math.random() * 3 * 24 * 60 * 60 * 1000)),
+      lastSeenAt: new Date(Date.now() - Math.floor(Math.random() * 2 * 24 * 60 * 60 * 1000)),
     });
   }
 

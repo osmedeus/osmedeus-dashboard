@@ -1,7 +1,7 @@
 import { http } from "./http";
 import { API_PREFIX } from "@/lib/api/prefix";
 import { isDemoMode } from "./demo-mode";
-import type { Workspace, HttpAsset, HttpAssetFilters } from "@/lib/types/asset";
+import type { Workspace, HttpAsset, HttpAssetFilters, AssetStats } from "@/lib/types/asset";
 import type { PaginatedResponse } from "@/lib/types/api";
 import { mockWorkspaces } from "@/lib/mock/data/workspaces";
 import { mockHttpAssets } from "@/lib/mock/data/http-assets";
@@ -173,6 +173,71 @@ export async function fetchWorkspace(id: string): Promise<Workspace | null> {
   }
 }
 
+function normalizeStatsList(list: unknown): string[] {
+  if (!Array.isArray(list)) return [];
+  const values = list
+    .map((item) => String(item ?? "").trim())
+    .filter((value) => value.length > 0);
+  return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
+}
+
+function resolveMockWorkspaceKey(workspace: string | undefined): string | null {
+  const normalizedWorkspace = (workspace ?? "").trim();
+  if (!normalizedWorkspace) return null;
+  const match = mockWorkspaces.find((w) => w.name === normalizedWorkspace) ||
+    mockWorkspaces.find((w) => w.name.toLowerCase() === normalizedWorkspace.toLowerCase());
+  if (match) return `ws-${String(match.id).padStart(3, "0")}`;
+  if (normalizedWorkspace.startsWith("ws-")) return normalizedWorkspace;
+  return null;
+}
+
+export async function fetchAssetStats(workspace?: string): Promise<AssetStats> {
+  if (isDemoMode()) {
+    const key = resolveMockWorkspaceKey(workspace);
+    const allAssets = key
+      ? mockHttpAssets[key] ?? []
+      : Object.values(mockHttpAssets).flat();
+    const technologies = new Set<string>();
+    const sources = new Set<string>();
+    const remarks = new Set<string>();
+    const assetTypes = new Set<string>();
+    allAssets.forEach((asset) => {
+      asset.technologies.forEach((tech) => {
+        const value = String(tech ?? "").trim();
+        if (value) technologies.add(value);
+      });
+      const source = String(asset.source ?? "").trim();
+      if (source) sources.add(source);
+      const assetType = String(asset.assetType ?? "").trim();
+      if (assetType) assetTypes.add(assetType);
+      const assetRemarks = Array.isArray(asset.remarks)
+        ? asset.remarks
+        : asset.remarks
+          ? [asset.remarks]
+          : [];
+      assetRemarks.forEach((remark) => {
+        const value = String(remark ?? "").trim();
+        if (value) remarks.add(value);
+      });
+    });
+    return {
+      technologies: Array.from(technologies).sort((a, b) => a.localeCompare(b)),
+      sources: Array.from(sources).sort((a, b) => a.localeCompare(b)),
+      remarks: Array.from(remarks).sort((a, b) => a.localeCompare(b)),
+      assetTypes: Array.from(assetTypes).sort((a, b) => a.localeCompare(b)),
+    };
+  }
+  const params = workspace ? { workspace } : undefined;
+  const res = await http.get(`${API_PREFIX}/asset-stats`, { params });
+  const data = res.data?.data ?? {};
+  return {
+    technologies: normalizeStatsList(data.technologies),
+    sources: normalizeStatsList(data.sources),
+    remarks: normalizeStatsList(data.remarks),
+    assetTypes: normalizeStatsList(data.asset_types ?? data.assetTypes),
+  };
+}
+
 /**
  * Fetch HTTP assets for a workspace with filtering and pagination
  */
@@ -206,6 +271,15 @@ export async function fetchHttpAssets(
     const wantedTech = (filters.technologies ?? [])
       .map((t) => t.trim().toLowerCase())
       .filter(Boolean);
+    const wantedAssetTypes = (filters.assetTypes ?? [])
+      .map((t) => t.trim().toLowerCase())
+      .filter(Boolean);
+    const wantedSources = (filters.sources ?? [])
+      .map((t) => t.trim().toLowerCase())
+      .filter(Boolean);
+    const wantedRemarks = (filters.remarks ?? [])
+      .map((t) => t.trim().toLowerCase())
+      .filter(Boolean);
     const wantedContentTypes = (filters.contentTypes ?? [])
       .map((t) => t.trim().toLowerCase())
       .filter(Boolean);
@@ -223,6 +297,25 @@ export async function fetchHttpAssets(
       if (wantedTech.length > 0) {
         const techSet = new Set(a.technologies.map((t) => String(t).trim().toLowerCase()));
         if (!wantedTech.some((t) => techSet.has(t))) return false;
+      }
+      if (wantedAssetTypes.length > 0) {
+        const assetType = String(a.assetType ?? "").trim().toLowerCase();
+        if (!wantedAssetTypes.includes(assetType)) return false;
+      }
+      if (wantedSources.length > 0) {
+        const source = String(a.source ?? "").trim().toLowerCase();
+        if (!wantedSources.includes(source)) return false;
+      }
+      if (wantedRemarks.length > 0) {
+        const assetRemarks = Array.isArray(a.remarks)
+          ? a.remarks
+          : a.remarks
+            ? [a.remarks]
+            : [];
+        const remarkSet = new Set(
+          assetRemarks.map((r) => String(r).trim().toLowerCase()).filter(Boolean)
+        );
+        if (!wantedRemarks.some((r) => remarkSet.has(r))) return false;
       }
       if (wantedContentTypes.length > 0) {
         const ct = (a.contentType ?? "").toLowerCase();
@@ -261,6 +354,9 @@ export async function fetchHttpAssets(
   if (filters.location) query.location = filters.location;
   // New filter parameters
   if (filters.technologies?.length) query.tech = filters.technologies.join(",");
+  if (filters.assetTypes?.length) query.asset_type = filters.assetTypes.join(",");
+  if (filters.sources?.length) query.source = filters.sources.join(",");
+  if (filters.remarks?.length) query.remarks = filters.remarks.join(",");
   if (filters.contentTypes?.length) query.content_type = filters.contentTypes.join(",");
   if (filters.tlsVersion) query.tls = filters.tlsVersion;
   const res = await http.get(`${API_PREFIX}/assets`, { params: query });
@@ -281,7 +377,7 @@ export async function fetchHttpAssets(
     words: a.words ?? 0,
     lines: a.lines ?? 0,
     hostIp: a.host_ip,
-    aRecords: a.a ?? [],
+    aRecords: a.dns_records ?? a.a ?? [],
     tls: a.tls,
     assetType: a.asset_type ?? "web",
     technologies: a.tech ?? [],
@@ -290,6 +386,7 @@ export async function fetchHttpAssets(
     source: a.source ?? "",
     createdAt: a.created_at ? new Date(a.created_at) : new Date(),
     updatedAt: a.updated_at ? new Date(a.updated_at) : new Date(),
+    lastSeenAt: a.last_seen_at ? new Date(a.last_seen_at) : undefined,
   }));
   const total = res.data?.pagination?.total ?? mapped.length;
   return {

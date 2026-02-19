@@ -246,7 +246,7 @@ export default function NewScanPage() {
           : "Your scan is now running.",
       });
 
-      router.push("/scans");
+      router.push(enableSchedule ? "/schedules" : "/scans");
     } catch (error) {
       toast.error("Failed to start scan", {
         description: error instanceof Error ? error.message : "Please try again.",
