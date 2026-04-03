@@ -253,7 +253,7 @@ export async function createScan(input: NewScanInput): Promise<Scan> {
     body.params = input.params;
   }
   if (input.priority) body.priority = input.priority;
-  if (typeof input.timeout === "number") body.timeout = input.timeout;
+  if (input.timeout?.trim()) body.timeout = input.timeout.trim();
   if (input.runner_type && input.runner_type !== "local") {
     body.runner_type = input.runner_type;
     if (input.runner_type === "docker" && input.docker_image) {
@@ -262,6 +262,18 @@ export async function createScan(input: NewScanInput): Promise<Scan> {
     if (input.runner_type === "ssh" && input.ssh_host) {
       body.ssh_host = input.ssh_host;
     }
+  }
+  if (input.run_mode) {
+    body.run_mode = input.run_mode;
+  }
+  if (input.run_mode === "cloud") {
+    if (input.cloud_provider) body.cloud_provider = input.cloud_provider;
+    if (typeof input.cloud_instances === "number" && input.cloud_instances > 0) body.cloud_instances = input.cloud_instances;
+    if (input.cloud_instance_type?.trim()) body.cloud_instance_type = input.cloud_instance_type.trim();
+    if (input.cloud_region?.trim()) body.cloud_region = input.cloud_region.trim();
+    if (input.cloud_auto_destroy) body.cloud_auto_destroy = true;
+    if (input.cloud_use_spot) body.cloud_use_spot = true;
+    if (input.cloud_reuse_infra?.trim()) body.cloud_reuse_infra = input.cloud_reuse_infra.trim();
   }
 
   const res = await http.post(`${API_PREFIX}/runs`, body);

@@ -40,11 +40,19 @@ export interface NewScanInput {
   repeat_wait_time?: string;
   params?: Record<string, string>;
   priority?: "low" | "medium" | "high";
-  timeout?: number;
+  timeout?: string;
   runner_type?: "local" | "docker" | "ssh";
   docker_image?: string;
   ssh_host?: string;
   schedule?: string;
+  run_mode?: "local" | "distributed" | "cloud";
+  cloud_provider?: "aws" | "gcp" | "digitalocean" | "linode" | "azure" | "hetzner";
+  cloud_instances?: number;
+  cloud_instance_type?: string;
+  cloud_region?: string;
+  cloud_auto_destroy?: boolean;
+  cloud_reuse_infra?: string;
+  cloud_use_spot?: boolean;
 }
 
 export type StepResultStatus =

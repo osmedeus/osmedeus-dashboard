@@ -35,6 +35,9 @@ import {
   ListIcon,
   FileTextIcon,
   GaugeIcon,
+  GlobeIcon,
+  NetworkIcon,
+  ZapIcon,
   UploadIcon,
   SlidersHorizontalIcon,
   PlusIcon,
@@ -49,6 +52,7 @@ import {
   XIcon,
   PlayIcon,
   Settings2Icon,
+  CloudIcon,
   CloudUploadIcon,
   BeanOffIcon,
   ChevronsUpDownIcon,
@@ -84,10 +88,18 @@ export default function NewScanPage() {
   const [repeatWaitTime, setRepeatWaitTime] = React.useState<string>("2h");
   const [params, setParams] = React.useState<Array<{ key: string; value: string }>>([]);
   const [priority, setPriority] = React.useState<"low" | "medium" | "high">("medium");
-  const [timeout, setTimeoutVal] = React.useState<number | "">("");
+  const [timeout, setTimeoutVal] = React.useState("6h");
   const [runnerType, setRunnerType] = React.useState<"local" | "docker" | "ssh">("local");
   const [dockerImage, setDockerImage] = React.useState("");
   const [sshHost, setSshHost] = React.useState("");
+  const [runMode, setRunMode] = React.useState<"local" | "distributed" | "cloud">("local");
+  const [cloudProvider, setCloudProvider] = React.useState<string>("aws");
+  const [cloudInstances, setCloudInstances] = React.useState<number>(1);
+  const [cloudInstanceType, setCloudInstanceType] = React.useState("");
+  const [cloudRegion, setCloudRegion] = React.useState("");
+  const [cloudAutoDestroy, setCloudAutoDestroy] = React.useState(false);
+  const [cloudReuseInfra, setCloudReuseInfra] = React.useState("");
+  const [cloudUseSpot, setCloudUseSpot] = React.useState(false);
   const [enableSchedule, setEnableSchedule] = React.useState(scheduleFromUrl);
   const [cronExpression, setCronExpression] = React.useState("");
   const [cronError, setCronError] = React.useState<string | null>(null);
@@ -225,8 +237,8 @@ export default function NewScanPage() {
           payload.params = paramsObj;
         }
         payload.priority = priority;
-        if (timeout !== "" && !Number.isNaN(Number(timeout))) {
-          payload.timeout = Number(timeout);
+        if (timeout.trim()) {
+          payload.timeout = timeout.trim();
         }
         if (runnerType !== "local") {
           payload.runner_type = runnerType;
@@ -236,6 +248,16 @@ export default function NewScanPage() {
           if (runnerType === "ssh" && sshHost.trim()) {
             payload.ssh_host = sshHost.trim();
           }
+        }
+        payload.run_mode = runMode;
+        if (runMode === "cloud") {
+          payload.cloud_provider = cloudProvider;
+          if (cloudInstances > 0) payload.cloud_instances = cloudInstances;
+          if (cloudInstanceType.trim()) payload.cloud_instance_type = cloudInstanceType.trim();
+          if (cloudRegion.trim()) payload.cloud_region = cloudRegion.trim();
+          if (cloudAutoDestroy) payload.cloud_auto_destroy = true;
+          if (cloudUseSpot) payload.cloud_use_spot = true;
+          if (cloudReuseInfra.trim()) payload.cloud_reuse_infra = cloudReuseInfra.trim();
         }
       }
       await createScan(payload);
@@ -509,7 +531,7 @@ export default function NewScanPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="priority" className="flex items-center gap-2">
                   <AlertTriangleIcon className="size-4 text-muted-foreground" />
@@ -533,20 +555,179 @@ export default function NewScanPage() {
               <div className="space-y-2">
                 <Label htmlFor="timeout" className="flex items-center gap-2">
                   <TimerIcon className="size-4 text-muted-foreground" />
-                  Timeout (seconds)
+                  Timeout
                 </Label>
                 <Input
                   id="timeout"
-                  type="number"
-                  min={1}
-                  placeholder="60"
+                  type="text"
+                  placeholder="e.g. 30s, 45m, 6h"
                   value={timeout}
-                  onChange={(e) => setTimeoutVal(e.target.value === "" ? "" : Number(e.target.value))}
+                  onChange={(e) => setTimeoutVal(e.target.value)}
                   disabled={enableSchedule}
                   className="h-9"
                 />
               </div>
+              {/* Run Mode / Environment */}
+              <div className="space-y-2">
+                <Label htmlFor="run_mode" className="flex items-center gap-2">
+                  <GlobeIcon className="size-4 text-muted-foreground" />
+                  Environment
+                </Label>
+                <Select
+                  value={runMode}
+                  onValueChange={(v) => setRunMode(v as any)}
+                  disabled={enableSchedule}
+                >
+                  <SelectTrigger id="run_mode" className="h-9">
+                    <SelectValue placeholder="Select environment" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="local">
+                      <span className="flex items-center gap-2">
+                        <CpuIcon className="size-4 text-muted-foreground" />
+                        Local
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="distributed">
+                      <span className="flex items-center gap-2">
+                        <NetworkIcon className="size-4 text-muted-foreground" />
+                        Distributed
+                      </span>
+                    </SelectItem>
+                    <SelectItem value="cloud">
+                      <span className="flex items-center gap-2">
+                        <CloudIcon className="size-4 text-muted-foreground" />
+                        Cloud
+                      </span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
+
+            {runMode === "cloud" && (
+              <div className="space-y-4 rounded-lg border border-sky-200/70 bg-sky-50/40 p-4 dark:border-sky-900/60 dark:bg-sky-950/20">
+                <span className="inline-flex items-center gap-2 text-xs font-medium text-sky-700 dark:text-sky-300">
+                  <CloudIcon className="size-4" />
+                  Cloud Configuration
+                </span>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="cloud_provider" className="flex items-center gap-2">
+                      <CloudIcon className="size-4 text-muted-foreground" />
+                      Cloud Provider
+                    </Label>
+                    <Select value={cloudProvider} onValueChange={setCloudProvider}>
+                      <SelectTrigger id="cloud_provider" className="h-9">
+                        <SelectValue placeholder="Select provider" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="aws">AWS</SelectItem>
+                        <SelectItem value="gcp">GCP</SelectItem>
+                        <SelectItem value="digitalocean">DigitalOcean</SelectItem>
+                        <SelectItem value="linode">Linode</SelectItem>
+                        <SelectItem value="azure">Azure</SelectItem>
+                        <SelectItem value="hetzner">Hetzner</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="cloud_instances" className="flex items-center gap-2">
+                      <ServerIcon className="size-4 text-muted-foreground" />
+                      Instances
+                    </Label>
+                    <Input
+                      id="cloud_instances"
+                      type="number"
+                      min={1}
+                      placeholder="1"
+                      value={cloudInstances}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        setCloudInstances(Number.isFinite(v) && v > 0 ? v : 1);
+                      }}
+                      className="h-9"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="cloud_instance_type" className="flex items-center gap-2">
+                      <CpuIcon className="size-4 text-muted-foreground" />
+                      Instance Type
+                    </Label>
+                    <Input
+                      id="cloud_instance_type"
+                      type="text"
+                      placeholder={cloudProvider === "aws" ? "t3.medium" : cloudProvider === "digitalocean" ? "s-2vcpu-4gb" : "default"}
+                      value={cloudInstanceType}
+                      onChange={(e) => setCloudInstanceType(e.target.value)}
+                      className="h-9"
+                    />
+                    <p className="text-xs text-muted-foreground">Leave empty for provider default</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="cloud_region" className="flex items-center gap-2">
+                      <GlobeIcon className="size-4 text-muted-foreground" />
+                      Region
+                    </Label>
+                    <Input
+                      id="cloud_region"
+                      type="text"
+                      placeholder={cloudProvider === "aws" ? "ap-southeast-1" : cloudProvider === "digitalocean" ? "sgp1" : "default"}
+                      value={cloudRegion}
+                      onChange={(e) => setCloudRegion(e.target.value)}
+                      className="h-9"
+                    />
+                    <p className="text-xs text-muted-foreground">Leave empty for provider default</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="flex items-center justify-between gap-4 rounded-lg border px-3 py-2">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="cloud_auto_destroy" className="flex items-center gap-2">
+                        <TimerIcon className="size-4 text-muted-foreground" />
+                        Auto Destroy
+                      </Label>
+                      <p className="text-xs text-muted-foreground">Destroy infra when scan completes</p>
+                    </div>
+                    <Switch id="cloud_auto_destroy" checked={cloudAutoDestroy} onCheckedChange={setCloudAutoDestroy} />
+                  </div>
+
+                  <div className="flex items-center justify-between gap-4 rounded-lg border px-3 py-2">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="cloud_use_spot" className="flex items-center gap-2">
+                        <ZapIcon className="size-4 text-muted-foreground" />
+                        Spot Instances
+                      </Label>
+                      <p className="text-xs text-muted-foreground">Use spot/preemptible for cost savings</p>
+                    </div>
+                    <Switch id="cloud_use_spot" checked={cloudUseSpot} onCheckedChange={setCloudUseSpot} />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="cloud_reuse_infra" className="flex items-center gap-2">
+                    <ServerIcon className="size-4 text-muted-foreground" />
+                    Reuse Infrastructure ID
+                  </Label>
+                  <Input
+                    id="cloud_reuse_infra"
+                    type="text"
+                    placeholder="Optional: existing infrastructure ID"
+                    value={cloudReuseInfra}
+                    onChange={(e) => setCloudReuseInfra(e.target.value)}
+                    className="h-9"
+                  />
+                  <p className="text-xs text-muted-foreground">Reuse existing cloud infrastructure instead of provisioning new</p>
+                </div>
+              </div>
+            )}
 
             <div className="flex items-center gap-3 pt-2">
               <span className="inline-flex items-center gap-2 text-xs font-medium text-muted-foreground">
