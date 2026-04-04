@@ -88,7 +88,7 @@ export default function NewScanPage() {
   const [repeatWaitTime, setRepeatWaitTime] = React.useState<string>("2h");
   const [params, setParams] = React.useState<Array<{ key: string; value: string }>>([]);
   const [priority, setPriority] = React.useState<"low" | "medium" | "high">("medium");
-  const [timeout, setTimeoutVal] = React.useState("6h");
+  const [timeout, setTimeoutVal] = React.useState("");
   const [runnerType, setRunnerType] = React.useState<"local" | "docker" | "ssh">("local");
   const [dockerImage, setDockerImage] = React.useState("");
   const [sshHost, setSshHost] = React.useState("");
